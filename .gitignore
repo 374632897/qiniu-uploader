@@ -1,0 +1,3 @@
+node_modules
+qiniu.conf.js
+*.log
