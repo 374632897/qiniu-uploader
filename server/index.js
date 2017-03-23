@@ -22,7 +22,8 @@ app.get('/upload', (req, res) => {
 })
 
 app.get('/getToken', (req, res) => {
-  const name = req.query.name;
+  // const name = req.query.name;
+  const name = Date.now() + '.png';
   if (!name) {
     res.json({
       success: false,
@@ -31,7 +32,7 @@ app.get('/getToken', (req, res) => {
   } else {
     res.json({
       success: true,
-      token: uptoken(bucket, req.query.name)
+      uptoken: uptoken(bucket, '')
     });
   }
 });

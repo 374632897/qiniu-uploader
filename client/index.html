@@ -2,10 +2,30 @@
 <html>
 <head>
   <title>qiniu-upload</title>
-  <link rel="stylesheet" type="text/css" href="./dist/index.css">
+  <style type="text/css">
+     #container {
+        width: 80%;
+        max-width: 800px;
+        margin: 0 auto;
+        height: 400px;
+        border: 1px solid #eaeaea;
+        margin-bottom: 10px;
+     }
+     button {
+       border: none;
+       background: #eee;
+       padding: 5px 7px;
+       color: yellowgreen;
+       border-radius: 3px;
+       margin-left: 10%;
+     }
+  </style>
 </head>
 <body>
-<div id="app"></div>
+<div id="app">
+  <div id="container"></div>
+  <button id = 'pickfiles'>上传文件</button>
+</div>
   <script src = './dist/index.js'></script>
 </body>
 </html>

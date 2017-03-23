@@ -144,7 +144,8 @@ function QiniuJsSDK() {
 
 
     var qiniuUploadUrl;
-    if (window.location.protocol === 'https:') {
+    // if (window.location.protocol === 'https:') {
+    if (true) {
         qiniuUploadUrl = 'https://up.qbox.me';
     } else {
         qiniuUploadUrl = 'http://upload.qiniu.com';
@@ -180,7 +181,8 @@ function QiniuJsSDK() {
      *     it will set 'qiniuUploadUrl' value with 'qiniuUploadUrls' looply
      */
     this.resetUploadUrl = function(){
-  var hosts = window.location.protocol === 'https:' ? qiniuUpHosts.https : qiniuUpHosts.http;
+  // var hosts = window.location.protocol === 'https:' ? qiniuUpHosts.https : qiniuUpHosts.http;
+  var hosts = true ? qiniuUpHosts.https : qiniuUpHosts.http;
   var i = changeUrlTimes % hosts.length;
   qiniuUploadUrl = hosts[i];
   changeUrlTimes++;
@@ -625,7 +627,8 @@ function QiniuJsSDK() {
             var putPolicy = getPutPolicy(uptoken);
             // var uphosts_url = "//uc.qbox.me/v1/query?ak="+ak+"&bucket="+putPolicy.scope;
             // IE9 does not support protocol relative url
-            var uphosts_url = window.location.protocol + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
+            // var uphosts_url = window.location.protocol + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
+            var uphosts_url = 'https:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
             logger.debug("putPolicy: ", putPolicy);
             logger.debug("get uphosts from: ", uphosts_url);
             var ie = that.detectIEVersion();
