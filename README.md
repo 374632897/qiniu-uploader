@@ -1,6 +1,8 @@
 # qiniu-uploader
 A simple uploader for qiniu-cloud
 
+![qiniu-uploader](https://assets.noteawesome.com/testUpload/2017-3-24/57939/image.png)
+
 ## 缘由
 为了套个https的小绿板, 使用了`Cloudflare`来进行`DNS`解析， 然后通过`cloudflare-nginx`来进行反向代理， 转发https流量。 最后是有了这玩意儿， 只不过访问速度却不大稳定。 然而对于我这种没有多少人来瞎逛， 甚至于我自己也不想折腾的博客， 这也并不是什么问题， 毕竟我想要的只是那个小绿板而已。
 
