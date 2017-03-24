@@ -2,3 +2,4 @@ node_modules
 qiniu.conf.js
 plupload
 *.log
+*.map
