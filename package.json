@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublish": "npm run build",
-    "start": "rollup -cw",
+    "start": "node server/",
+    "dev": "rollup -cw",
     "build": "NODE_ENV=prod rollup -c",
     "clean": "rm -rf dist",
     "pages": "bash ./pages.sh"
@@ -22,6 +23,7 @@
     "babel-preset-es2015": "^6.24.0",
     "babel-preset-stage-2": "^6.22.0",
     "body-parser": "^1.17.1",
+    "chalk": "^1.1.3",
     "cookie-parser": "^1.4.3",
     "express": "^4.15.2",
     "qiniu": "6.1.13",

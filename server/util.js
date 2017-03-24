@@ -1,5 +1,13 @@
 const qiniu = require('qiniu');
-const conf  = require('../qiniu.conf.js');
+const chalk = require('chalk');
+let conf;
+try {
+  conf = require('../qiniu.conf.js');
+} catch (e) {
+  console.log(chalk.red('没有找到') + chalk.green(' qiniu.conf.js ') + chalk.red('文件'))
+  console.log(chalk.green('请根据 qiniu.default.conf.js 完成该文件的配置'));
+  process.exit(1);
+}
 
 Object.assign(qiniu.conf, conf);
 
@@ -8,15 +16,3 @@ exports.uptoken = function uptoken (bucket, key) {
   const putPolicy = new qiniu.rs.PutPolicy(name);
   return putPolicy.token();
 }
-
-// exports.uploadFile = async function uploadFile (uptoken, key, localFile) {
-//   const extra = new qiniu.io.PutExtra();
-//   return await new Promise((resolve, reject) => {
-//     qiniu.io.putFile(uptoken, key, localFile, extra, function (err, ret) {
-//       if (err) return reject(err);
-//       resolve(ret);
-//     });
-//   })
-// }
-
-// console.info(exports.uptoken('blog2', 'test.jpg'));

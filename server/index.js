@@ -2,7 +2,7 @@ const path = require('path')
 const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
-const { uptoken } = require('./util');
+const { uptoken }  = require('./util');
 const app = express();
 
 const bucket = 'blog2';
@@ -22,19 +22,14 @@ app.get('/upload', (req, res) => {
 })
 
 app.get('/getToken', (req, res) => {
-  // const name = req.query.name;
-  const name = Date.now() + '.png';
-  if (!name) {
-    res.json({
-      success: false,
-      message: 'expected name'
-    });
-  } else {
-    res.json({
-      success: true,
-      uptoken: uptoken(bucket, '')
-    });
-  }
+  return res.json({
+    success: true,
+    uptoken: uptoken(bucket, '')
+  });
 });
 
-app.listen(4999);
+app.listen(4999, (err) => {
+  if (!err) {
+    console.log('Server runing at localhost:4999/');
+  }
+});
