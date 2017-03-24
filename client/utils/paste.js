@@ -9,7 +9,7 @@ $pasteEle.addEventListener('paste', (e) => {
       item.kind == "file"
       && /image\//.test(item.type)
     ) {
-      var file = e.clipboardData.items[i].getAsFile();
+      const file = item.getAsFile();
       window.uploader.addFile(file);
       break;
     }

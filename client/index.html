@@ -2,34 +2,18 @@
 <html>
 <head>
   <title>qiniu-upload</title>
-  <style type="text/css">
-     #container, textarea {
-        width: 80%;
-        max-width: 800px;
-        margin: 0 auto;
-        height: 400px;
-        border: 1px solid #eaeaea;
-        margin-bottom: 10px;
-        display: block;
-     }
-     button {
-       border: none;
-       background: #eee;
-       padding: 5px 7px;
-       color: yellowgreen;
-       border-radius: 3px;
-       margin-left: 10%;
-     }
-     textarea {
-       height: 40px;
-     }
-  </style>
+  <link rel="stylesheet" type="text/css" href="./dist/index.css">
 </head>
 <body>
-<div id="app">
-  <div id="container"></div>
-  <textarea id = 'paste'></textarea>
-  <button id = 'pickfiles'>上传文件</button>
+<div id="upload-area">
+  <div id="container">
+    <h2>拖拽文件到此处上传</h2>
+  </div>
+  <textarea id = 'paste' placeholder = '可以在此处粘贴文件进行上传'></textarea>
+  <button id = 'pickfiles'>单击按钮从文件夹上传</button>
+</div>
+<div id="upload-data">
+
 </div>
   <script src = './dist/index.js'></script>
 </body>

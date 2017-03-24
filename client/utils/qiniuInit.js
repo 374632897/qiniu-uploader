@@ -1,3 +1,8 @@
+import {
+  domain,
+  getName
+} from './url';
+
 var uploader = Qiniu.uploader({
     runtimes: 'html5,flash,html4',      // 上传模式,依次退化
     browse_button: 'pickfiles',         // 上传选择的点选按钮，**必需**
@@ -15,7 +20,8 @@ var uploader = Qiniu.uploader({
     // Ajax请求downToken的Url，私有空间时使用,JS-SDK 将向该地址POST文件的key和domain,服务端返回的JSON必须包含`url`字段，`url`值为该文件的下载地址
     unique_names: false,              // 默认 false，key 为文件名。若开启该选项，JS-SDK 会为每个文件自动生成key（文件名）
     // save_key: true,                  // 默认 false。若在服务端生成 uptoken 的上传策略中指定了 `save_key`，则开启，SDK在前端将不对key进行任何处理
-    domain: 'https://assets.noteawesome.com/',     // bucket 域名，下载资源时用到，如：'http://xxx.bkt.clouddn.com/' **必需**
+    // domain: 'https://assets.noteawesome.com/',     // bucket 域名，下载资源时用到，如：'http://xxx.bkt.clouddn.com/' **必需**
+    domain: domain,     // bucket 域名，下载资源时用到，如：'http://xxx.bkt.clouddn.com/' **必需**
     container: 'container',             // 上传区域 DOM ID，默认是 browser_button 的父元素，
     max_file_size: '100mb',             // 最大文件体积限制
     // flash_swf_url: 'path/of/plupload/Moxie.swf',  //引入 flash,相对路径
@@ -40,16 +46,22 @@ var uploader = Qiniu.uploader({
     init: {
         'FilesAdded': function(up, files) {
             plupload.each(files, function(file) {
+              // console.info('FilesAdded => ', file);
                 // 文件添加进队列后,处理相关的事情
             });
         },
         'BeforeUpload': function(up, file) {
+          // console.info('BeforeUpload => ', up, file);
                // 每个文件上传前,处理相关的事情
         },
         'UploadProgress': function(up, file) {
+           // console.info('UploadProgress => ', up, file);
+
                // 每个文件上传时,处理相关的事情
         },
         'FileUploaded': function(up, file, info) {
+            // file.info = info;
+          // console.info('FileUploaded => ', up, file, info);
                // 每个文件上传成功后,处理相关的事情
                // 其中 info 是文件上传成功后，服务端返回的json，形式如
                // {
@@ -57,30 +69,29 @@ var uploader = Qiniu.uploader({
                //    "key": "gogopher.jpg"
                //  }
                // 参考http://developer.qiniu.com/docs/v6/api/overview/up/response/simple-response.html
-
-               // var domain = up.getOption('domain');
-               // var res = parseJSON(info);
-               // var sourceLink = domain + res.key; 获取上传成功后的文件的Url
+               console
+               console
+               console
+               var domain = up.getOption('domain');
+               var res = JSON.parse(info.response);
+               var sourceLink = domain + res.key; //获取上传成功后的文件的Url
+               file.sourceLink = sourceLink;
         },
         'Error': function(up, err, errTip) {
+          // console.info('Error => ', err, err, errTip);
                //上传出错时,处理相关的事情
         },
         'UploadComplete': function() {
+          // console.info('UploadComplete => ', arguments);
                //队列文件处理完毕后,处理相关的事情
         },
         'Key': function(up, file) {
-          console.log()
-          console.log()
-          console.log()
-          console.log()
-          console.log()
-          console.log()
             // 若想在前端对每个文件的key进行个性化处理，可以配置该函数
             // 该配置必须要在 unique_names: false , save_key: false 时才生效
-
-            var key = Date.now() + '/' + file.name;
+            return getName() + file.name;
+            // var key = Date.now() + '/' + file.name;
             // do something with key here
-            return key
+            // return key
         }
     }
 });
