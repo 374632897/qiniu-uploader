@@ -32,6 +32,7 @@ A simple uploader for qiniu-cloud
 * 然后运行`npm start`， 访问`http://localhost:4999`就可以上传文件了o(╯□╰)o
 
 * 为了更方便的使用， 你可以设置一个别名来启动这个文件，那么下一次， 当你需要上传文件的时候， 直接输入别名就可以了。
+
   ![别名](https://assets.noteawesome.com/testUpload/2017-3-24/64904/image.png)
 
 
