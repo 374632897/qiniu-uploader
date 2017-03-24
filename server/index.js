@@ -1,7 +1,6 @@
 const path = require('path')
 const express = require('express');
 const bodyParser = require('body-parser');
-const cookieParser = require('cookie-parser');
 const { uptoken }  = require('./util');
 const { BUCKET_NAME: bucket } = require('../qiniu.conf');
 const app = express();
@@ -11,8 +10,6 @@ app.use(express.static(path.join(__dirname, '..', 'client')));
 app.use(bodyParser.json());
 
 app.use(bodyParser.urlencoded({ extended: false }));
-
-app.use(cookieParser());
 
 app.get('/upload', (req, res) => {
   res.json({

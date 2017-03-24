@@ -1,15 +1,13 @@
 {
   "name": "qiniu-upload",
   "version": "0.0.1",
-  "description": "An uploader of qiniu ",
+  "description": "An uploader for qiniu ",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublish": "npm run build",
     "start": "node server/",
     "dev": "rollup -cw",
-    "build": "NODE_ENV=prod rollup -c",
-    "clean": "rm -rf dist",
-    "pages": "bash ./pages.sh"
+    "build": "NODE_ENV=prod rollup -c"
   },
   "author": "",
   "license": "MIT",
@@ -24,7 +22,6 @@
     "babel-preset-stage-2": "^6.22.0",
     "body-parser": "^1.17.1",
     "chalk": "^1.1.3",
-    "cookie-parser": "^1.4.3",
     "express": "^4.15.2",
     "qiniu": "6.1.13",
     "rollup": "^0.41.6",
