@@ -3,9 +3,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cookieParser = require('cookie-parser');
 const { uptoken }  = require('./util');
+const { BUCKET_NAME: bucket } = require('../qiniu.conf');
 const app = express();
-
-const bucket = 'blog2';
 
 app.use(express.static(path.join(__dirname, '..', 'client')));
 

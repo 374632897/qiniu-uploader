@@ -9290,13 +9290,15 @@ var Item = { render: function () {
       this.urlInput.value = this.file.sourceLink;
       this.urlInput.select();
       if (document.execCommand('copy')) {
-        alert('复制成功');
+        alert('复制成功， 可以粘贴使用了O(∩_∩)O');
       } else {
         $textarea.value = $textarea.value + this.file.sourceLink + '\n';
         alert('复制失败, 请手动复制上面文本框内的内容进行粘贴');
       }
     },
-    preview() {}
+    preview() {
+      window.open(this.file.sourceLink);
+    }
   },
   computed: {
     size() {
@@ -24200,7 +24202,15 @@ var plupload$1 = createCommonjsModule(function (module) {
 window.moxie = moxie$1;
 window.plupload = plupload$1;
 
-const domain = 'https://assets.noteawesome.com/';
+var qiniu_conf = {
+  ACCESS_KEY: 'xX4cGAPXhg4i_qk9Kv9kvMgKNFGt-BELjtxAG7SM',
+  SECRET_KEY: 'E_J2kx6GUuQLY7LGB7-BR8sl0O4DZ_G_VeqjDyqe',
+  DOMAIN_NAME: 'https://assets.noteawesome.com/',
+  BUCKET_NAME: 'blog2'
+};
+
+const domain = qiniu_conf.DOMAIN_NAME;
+
 const nameSpace = 'testUpload';
 
 const random = () => Math.random() * 1e5 | 0;

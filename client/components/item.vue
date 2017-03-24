@@ -38,14 +38,14 @@ export default {
       this.urlInput.value = this.file.sourceLink;
       this.urlInput.select();
       if (document.execCommand('copy')) {
-        alert('复制成功');
+        alert('复制成功， 可以粘贴使用了O(∩_∩)O');
       } else {
         $textarea.value = $textarea.value + this.file.sourceLink + '\n';
         alert('复制失败, 请手动复制上面文本框内的内容进行粘贴');
       }
     },
     preview () {
-
+      window.open(this.file.sourceLink);
     },
   },
   computed: {

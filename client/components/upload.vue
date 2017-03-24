@@ -4,7 +4,6 @@
       v-for = 'file,index in files'
       :file = 'file'
     >
-
     </item>
   </div>
 </template>
@@ -50,7 +49,7 @@ div, textarea, button, h2, span, ul, li {
    border: none;
    background: #eee;
    padding: 5px 7px;
-   color: yellowgreen;
+   color: #18206b;
    border-radius: 3px;
    cursor: pointer;
  }
@@ -64,6 +63,7 @@ div, textarea, button, h2, span, ul, li {
  textarea {
    height: 40px;
    width: 100%;
+   max-width: 100%;
    min-height: 200px;
  }
  h2 {

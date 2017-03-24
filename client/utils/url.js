@@ -1,4 +1,7 @@
-export const domain = 'https://assets.noteawesome.com/';
+import conf from '../../qiniu.conf';
+
+export const domain = conf.DOMAIN_NAME;
+
 export const nameSpace = 'testUpload';
 
 const random = () => Math.random() * 1e5 | 0;
