@@ -21,7 +21,9 @@ A simple uploader for qiniu-cloud
   cp qiniu.default.conf.js qiniu.conf.js
   ```
 
-* 将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY`、`DOMAIN_NAME`和`BUCKET_NAME` 替换成自己的。
+* 将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY` 替换成自己的。
+
+* 在`public.js`里面指定域名和空间名。
 
 * 安装依赖
   ```bash

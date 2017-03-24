@@ -13,7 +13,7 @@ function createCommonjsModule(fn, module) {
 
 var vue = createCommonjsModule(function (module, exports) {
 /*!
- * Vue.js v2.2.4
+ * Vue.js v2.2.5
  * (c) 2014-2017 Evan You
  * Released under the MIT License.
  */
@@ -591,11 +591,13 @@ var formatComponentName;
     if (vm.$root === vm) {
       return '<Root>'
     }
-    var name = typeof vm === 'function' && vm.options
-      ? vm.options.name
-      : vm._isVue
-        ? vm.$options.name || vm.$options._componentTag
-        : vm.name;
+    var name = typeof vm === 'string'
+      ? vm
+      : typeof vm === 'function' && vm.options
+        ? vm.options.name
+        : vm._isVue
+          ? vm.$options.name || vm.$options._componentTag
+          : vm.name;
 
     var file = vm._isVue && vm.$options.__file;
     if (!name && file) {
@@ -890,7 +892,7 @@ function defineReactive$$1 (
  * already exist.
  */
 function set (target, key, val) {
-  if (Array.isArray(target)) {
+  if (Array.isArray(target) && typeof key === 'number') {
     target.length = Math.max(target.length, key);
     target.splice(key, 1, val);
     return val
@@ -899,7 +901,7 @@ function set (target, key, val) {
     target[key] = val;
     return val
   }
-  var ob = target.__ob__;
+  var ob = (target ).__ob__;
   if (target._isVue || (ob && ob.vmCount)) {
     "development" !== 'production' && warn(
       'Avoid adding reactive properties to a Vue instance or its root $data ' +
@@ -920,11 +922,11 @@ function set (target, key, val) {
  * Delete a property and trigger change if necessary.
  */
 function del (target, key) {
-  if (Array.isArray(target)) {
+  if (Array.isArray(target) && typeof key === 'number') {
     target.splice(key, 1);
     return
   }
-  var ob = target.__ob__;
+  var ob = (target ).__ob__;
   if (target._isVue || (ob && ob.vmCount)) {
     "development" !== 'production' && warn(
       'Avoid deleting properties on a Vue instance or its root $data ' +
@@ -1925,6 +1927,18 @@ function eventsMixin (Vue) {
 
   Vue.prototype.$emit = function (event) {
     var vm = this;
+    {
+      var lowerCaseEvent = event.toLowerCase();
+      if (lowerCaseEvent !== event && vm._events[lowerCaseEvent]) {
+        tip(
+          "Event \"" + lowerCaseEvent + "\" is emitted in component " +
+          (formatComponentName(vm)) + " but the handler is registered for \"" + event + "\". " +
+          "Note that HTML attributes are case-insensitive and you cannot use " +
+          "v-on to listen to camelCase events when using in-DOM templates. " +
+          "You should probably use \"" + (hyphenate(event)) + "\" instead of \"" + event + "\"."
+        );
+      }
+    }
     var cbs = vm._events[event];
     if (cbs) {
       cbs = cbs.length > 1 ? toArray(cbs) : cbs;
@@ -2345,10 +2359,14 @@ function flushSchedulerQueue () {
     }
   }
 
+  // reset scheduler before updated hook called
+  var oldQueue = queue.slice();
+  resetSchedulerState();
+
   // call updated hooks
-  index = queue.length;
+  index = oldQueue.length;
   while (index--) {
-    watcher = queue[index];
+    watcher = oldQueue[index];
     vm = watcher.vm;
     if (vm._watcher === watcher && vm._isMounted) {
       callHook(vm, 'updated');
@@ -2360,8 +2378,6 @@ function flushSchedulerQueue () {
   if (devtools && config.devtools) {
     devtools.emit('flush');
   }
-
-  resetSchedulerState();
 }
 
 /**
@@ -2714,7 +2730,7 @@ function initProps (vm, propsOptions) {
 function initData (vm) {
   var data = vm.$options.data;
   data = vm._data = typeof data === 'function'
-    ? data.call(vm)
+    ? getData(data, vm)
     : data || {};
   if (!isPlainObject(data)) {
     data = {};
@@ -2741,6 +2757,15 @@ function initData (vm) {
   }
   // observe data
   observe(data, true /* asRootData */);
+}
+
+function getData (data, vm) {
+  try {
+    return data.call(vm)
+  } catch (e) {
+    handleError(e, vm, "data()");
+    return {}
+  }
 }
 
 var computedWatcherOptions = { lazy: true };
@@ -2999,7 +3024,7 @@ function createComponent (
   }
 
   // extract props
-  var propsData = extractProps(data, Ctor);
+  var propsData = extractProps(data, Ctor, tag);
 
   // functional component
   if (Ctor.options.functional) {
@@ -3140,7 +3165,7 @@ function resolveAsyncComponent (
   }
 }
 
-function extractProps (data, Ctor) {
+function extractProps (data, Ctor, tag) {
   // we are only extracting raw values here.
   // validation and default values are handled in the child
   // component itself.
@@ -3161,12 +3186,13 @@ function extractProps (data, Ctor) {
           key !== keyInLowerCase &&
           attrs && attrs.hasOwnProperty(keyInLowerCase)
         ) {
-          warn(
-            "Prop \"" + keyInLowerCase + "\" is not declared in component " +
-            (formatComponentName(Ctor)) + ". Note that HTML attributes are " +
-            "case-insensitive and camelCased props need to use their kebab-case " +
-            "equivalents when using in-DOM templates. You should probably use " +
-            "\"" + altKey + "\" instead of \"" + key + "\"."
+          tip(
+            "Prop \"" + keyInLowerCase + "\" is passed to component " +
+            (formatComponentName(tag || Ctor)) + ", but the delared prop name is" +
+            " \"" + key + "\". " +
+            "Note that HTML attributes are case-insensitive and camelCased " +
+            "props need to use their kebab-case equivalents when using in-DOM " +
+            "templates. You should probably use \"" + altKey + "\" instead of \"" + key + "\"."
           );
         }
       }
@@ -3650,18 +3676,30 @@ function initInjections (vm) {
         ? Reflect.ownKeys(inject)
         : Object.keys(inject);
 
-    for (var i = 0; i < keys.length; i++) {
+    var loop = function ( i ) {
       var key = keys[i];
       var provideKey = isArray ? key : inject[key];
       var source = vm;
       while (source) {
         if (source._provided && provideKey in source._provided) {
-          vm[key] = source._provided[provideKey];
+          /* istanbul ignore else */
+          {
+            defineReactive$$1(vm, key, source._provided[provideKey], function () {
+              warn(
+                "Avoid mutating an injected value directly since the changes will be " +
+                "overwritten whenever the provided component re-renders. " +
+                "injection being mutated: \"" + key + "\"",
+                vm
+              );
+            });
+          }
           break
         }
         source = source.$parent;
       }
-    }
+    };
+
+    for (var i = 0; i < keys.length; i++) loop( i );
   }
 }
 
@@ -3671,14 +3709,18 @@ var uid = 0;
 
 function initMixin (Vue) {
   Vue.prototype._init = function (options) {
-    /* istanbul ignore if */
-    if ("development" !== 'production' && config.performance && mark) {
-      mark('vue-perf-init');
-    }
-
     var vm = this;
     // a uid
     vm._uid = uid++;
+
+    var startTag, endTag;
+    /* istanbul ignore if */
+    if ("development" !== 'production' && config.performance && mark) {
+      startTag = "vue-perf-init:" + (vm._uid);
+      endTag = "vue-perf-end:" + (vm._uid);
+      mark(startTag);
+    }
+
     // a flag to avoid this being observed
     vm._isVue = true;
     // merge options
@@ -3712,8 +3754,8 @@ function initMixin (Vue) {
     /* istanbul ignore if */
     if ("development" !== 'production' && config.performance && mark) {
       vm._name = formatComponentName(vm, false);
-      mark('vue-perf-init-end');
-      measure(((vm._name) + " init"), 'vue-perf-init', 'vue-perf-init-end');
+      mark(endTag);
+      measure(((vm._name) + " init"), startTag, endTag);
     }
 
     if (vm.$options.el) {
@@ -4125,7 +4167,7 @@ Object.defineProperty(Vue$3.prototype, '$isServer', {
   get: isServerRendering
 });
 
-Vue$3.version = '2.2.4';
+Vue$3.version = '2.2.5';
 
 /*  */
 
@@ -4465,21 +4507,36 @@ var emptyNode = new VNode('', {}, []);
 
 var hooks = ['create', 'activate', 'update', 'remove', 'destroy'];
 
-function isUndef (s) {
-  return s == null
+function isUndef (v) {
+  return v === undefined || v === null
 }
 
-function isDef (s) {
-  return s != null
+function isDef (v) {
+  return v !== undefined && v !== null
 }
 
-function sameVnode (vnode1, vnode2) {
+function isTrue (v) {
+  return v === true
+}
+
+function sameVnode (a, b) {
   return (
-    vnode1.key === vnode2.key &&
-    vnode1.tag === vnode2.tag &&
-    vnode1.isComment === vnode2.isComment &&
-    !vnode1.data === !vnode2.data
+    a.key === b.key &&
+    a.tag === b.tag &&
+    a.isComment === b.isComment &&
+    isDef(a.data) === isDef(b.data) &&
+    sameInputType(a, b)
   )
+}
+
+// Some browsers do not support dynamically changing type for <input>
+// so they need to be treated as different nodes
+function sameInputType (a, b) {
+  if (a.tag !== 'input') { return true }
+  var i;
+  var typeA = isDef(i = a.data) && isDef(i = i.attrs) && i.type;
+  var typeB = isDef(i = b.data) && isDef(i = i.attrs) && i.type;
+  return typeA === typeB
 }
 
 function createKeyToOldIdx (children, beginIdx, endIdx) {
@@ -4502,7 +4559,9 @@ function createPatchFunction (backend) {
   for (i = 0; i < hooks.length; ++i) {
     cbs[hooks[i]] = [];
     for (j = 0; j < modules.length; ++j) {
-      if (modules[j][hooks[i]] !== undefined) { cbs[hooks[i]].push(modules[j][hooks[i]]); }
+      if (isDef(modules[j][hooks[i]])) {
+        cbs[hooks[i]].push(modules[j][hooks[i]]);
+      }
     }
   }
 
@@ -4523,7 +4582,7 @@ function createPatchFunction (backend) {
   function removeNode (el) {
     var parent = nodeOps.parentNode(el);
     // element may have already been removed due to v-html / v-text
-    if (parent) {
+    if (isDef(parent)) {
       nodeOps.removeChild(parent, el);
     }
   }
@@ -4574,7 +4633,7 @@ function createPatchFunction (backend) {
       if ("development" !== 'production' && data && data.pre) {
         inPre--;
       }
-    } else if (vnode.isComment) {
+    } else if (isTrue(vnode.isComment)) {
       vnode.elm = nodeOps.createComment(vnode.text);
       insert(parentElm, vnode.elm, refElm);
     } else {
@@ -4596,7 +4655,7 @@ function createPatchFunction (backend) {
       // in that case we can just return the element and be done.
       if (isDef(vnode.componentInstance)) {
         initComponent(vnode, insertedVnodeQueue);
-        if (isReactivated) {
+        if (isTrue(isReactivated)) {
           reactivateComponent(vnode, insertedVnodeQueue, parentElm, refElm);
         }
         return true
@@ -4605,7 +4664,7 @@ function createPatchFunction (backend) {
   }
 
   function initComponent (vnode, insertedVnodeQueue) {
-    if (vnode.data.pendingInsert) {
+    if (isDef(vnode.data.pendingInsert)) {
       insertedVnodeQueue.push.apply(insertedVnodeQueue, vnode.data.pendingInsert);
     }
     vnode.elm = vnode.componentInstance.$el;
@@ -4644,8 +4703,8 @@ function createPatchFunction (backend) {
   }
 
   function insert (parent, elm, ref) {
-    if (parent) {
-      if (ref) {
+    if (isDef(parent)) {
+      if (isDef(ref)) {
         nodeOps.insertBefore(parent, elm, ref);
       } else {
         nodeOps.appendChild(parent, elm);
@@ -4676,8 +4735,8 @@ function createPatchFunction (backend) {
     }
     i = vnode.data.hook; // Reuse variable
     if (isDef(i)) {
-      if (i.create) { i.create(emptyNode, vnode); }
-      if (i.insert) { insertedVnodeQueue.push(vnode); }
+      if (isDef(i.create)) { i.create(emptyNode, vnode); }
+      if (isDef(i.insert)) { insertedVnodeQueue.push(vnode); }
     }
   }
 
@@ -4736,15 +4795,15 @@ function createPatchFunction (backend) {
   }
 
   function removeAndInvokeRemoveHook (vnode, rm) {
-    if (rm || isDef(vnode.data)) {
+    if (isDef(rm) || isDef(vnode.data)) {
       var listeners = cbs.remove.length + 1;
-      if (!rm) {
-        // directly removing
-        rm = createRmCb(vnode.elm, listeners);
-      } else {
+      if (isDef(rm)) {
         // we have a recursively passed down rm callback
         // increase the listeners count
         rm.listeners += listeners;
+      } else {
+        // directly removing
+        rm = createRmCb(vnode.elm, listeners);
       }
       // recursively invoke hooks on child component root node
       if (isDef(i = vnode.componentInstance) && isDef(i = i._vnode) && isDef(i.data)) {
@@ -4846,24 +4905,23 @@ function createPatchFunction (backend) {
     // note we only do this if the vnode is cloned -
     // if the new node is not cloned it means the render functions have been
     // reset by the hot-reload-api and we need to do a proper re-render.
-    if (vnode.isStatic &&
-        oldVnode.isStatic &&
+    if (isTrue(vnode.isStatic) &&
+        isTrue(oldVnode.isStatic) &&
         vnode.key === oldVnode.key &&
-        (vnode.isCloned || vnode.isOnce)) {
+        (isTrue(vnode.isCloned) || isTrue(vnode.isOnce))) {
       vnode.elm = oldVnode.elm;
       vnode.componentInstance = oldVnode.componentInstance;
       return
     }
     var i;
     var data = vnode.data;
-    var hasData = isDef(data);
-    if (hasData && isDef(i = data.hook) && isDef(i = i.prepatch)) {
+    if (isDef(data) && isDef(i = data.hook) && isDef(i = i.prepatch)) {
       i(oldVnode, vnode);
     }
     var elm = vnode.elm = oldVnode.elm;
     var oldCh = oldVnode.children;
     var ch = vnode.children;
-    if (hasData && isPatchable(vnode)) {
+    if (isDef(data) && isPatchable(vnode)) {
       for (i = 0; i < cbs.update.length; ++i) { cbs.update[i](oldVnode, vnode); }
       if (isDef(i = data.hook) && isDef(i = i.update)) { i(oldVnode, vnode); }
     }
@@ -4881,7 +4939,7 @@ function createPatchFunction (backend) {
     } else if (oldVnode.text !== vnode.text) {
       nodeOps.setTextContent(elm, vnode.text);
     }
-    if (hasData) {
+    if (isDef(data)) {
       if (isDef(i = data.hook) && isDef(i = i.postpatch)) { i(oldVnode, vnode); }
     }
   }
@@ -4889,7 +4947,7 @@ function createPatchFunction (backend) {
   function invokeInsertHook (vnode, queue, initial) {
     // delay insert hooks for component root nodes, invoke them after the
     // element is really inserted
-    if (initial && vnode.parent) {
+    if (isTrue(initial) && isDef(vnode.parent)) {
       vnode.parent.data.pendingInsert = queue;
     } else {
       for (var i = 0; i < queue.length; ++i) {
@@ -4966,7 +5024,7 @@ function createPatchFunction (backend) {
   }
 
   function assertNodeMatch (node, vnode) {
-    if (vnode.tag) {
+    if (isDef(vnode.tag)) {
       return (
         vnode.tag.indexOf('vue-component') === 0 ||
         vnode.tag.toLowerCase() === (node.tagName && node.tagName.toLowerCase())
@@ -4977,15 +5035,15 @@ function createPatchFunction (backend) {
   }
 
   return function patch (oldVnode, vnode, hydrating, removeOnly, parentElm, refElm) {
-    if (!vnode) {
-      if (oldVnode) { invokeDestroyHook(oldVnode); }
+    if (isUndef(vnode)) {
+      if (isDef(oldVnode)) { invokeDestroyHook(oldVnode); }
       return
     }
 
     var isInitialPatch = false;
     var insertedVnodeQueue = [];
 
-    if (!oldVnode) {
+    if (isUndef(oldVnode)) {
       // empty mount (likely as component), create new root element
       isInitialPatch = true;
       createElm(vnode, insertedVnodeQueue, parentElm, refElm);
@@ -5003,7 +5061,7 @@ function createPatchFunction (backend) {
             oldVnode.removeAttribute('server-rendered');
             hydrating = true;
           }
-          if (hydrating) {
+          if (isTrue(hydrating)) {
             if (hydrate(oldVnode, vnode, insertedVnodeQueue)) {
               invokeInsertHook(vnode, insertedVnodeQueue, true);
               return oldVnode
@@ -5034,7 +5092,7 @@ function createPatchFunction (backend) {
           nodeOps.nextSibling(oldElm)
         );
 
-        if (vnode.parent) {
+        if (isDef(vnode.parent)) {
           // component root element replaced.
           // update parent placeholder node element, recursively
           var ancestor = vnode.parent;
@@ -5049,7 +5107,7 @@ function createPatchFunction (backend) {
           }
         }
 
-        if (parentElm$1 !== null) {
+        if (isDef(parentElm$1)) {
           removeVnodes(parentElm$1, [oldVnode], 0, 0);
         } else if (isDef(oldVnode.tag)) {
           invokeDestroyHook(oldVnode);
@@ -6655,7 +6713,7 @@ var model$1 = {
       if (isIE || isEdge) {
         setTimeout(cb, 0);
       }
-    } else if (vnode.tag === 'textarea' || el.type === 'text') {
+    } else if (vnode.tag === 'textarea' || el.type === 'text' || el.type === 'password') {
       el._vModifiers = binding.modifiers;
       if (!binding.modifiers.lazy) {
         if (!isAndroid) {
@@ -7325,6 +7383,7 @@ function parseHTML (html, options) {
   var stack = [];
   var expectHTML = options.expectHTML;
   var isUnaryTag$$1 = options.isUnaryTag || no;
+  var canBeLeftOpenTag$$1 = options.canBeLeftOpenTag || no;
   var index = 0;
   var last, lastTag;
   while (html) {
@@ -7473,7 +7532,7 @@ function parseHTML (html, options) {
       if (lastTag === 'p' && isNonPhrasingTag(tagName)) {
         parseEndTag(lastTag);
       }
-      if (canBeLeftOpenTag(tagName) && lastTag === tagName) {
+      if (canBeLeftOpenTag$$1(tagName) && lastTag === tagName) {
         parseEndTag(tagName);
       }
     }
@@ -7671,6 +7730,7 @@ function parse (
     warn: warn$2,
     expectHTML: options.expectHTML,
     isUnaryTag: options.isUnaryTag,
+    canBeLeftOpenTag: options.canBeLeftOpenTag,
     shouldDecodeNewlines: options.shouldDecodeNewlines,
     start: function start (tag, attrs, unary) {
       // check namespace.
@@ -9152,6 +9212,7 @@ var baseOptions = {
   isPreTag: isPreTag,
   isUnaryTag: isUnaryTag,
   mustUseProp: mustUseProp,
+  canBeLeftOpenTag: canBeLeftOpenTag,
   isReservedTag: isReservedTag,
   getTagNamespace: getTagNamespace,
   staticKeys: genStaticKeys(modules$1)
@@ -9333,14 +9394,19 @@ var App = { render: function () {
   computed: {}
 };
 
-var qiniu_conf = {
-  ACCESS_KEY: 'xX4cGAPXhg4i_qk9Kv9kvMgKNFGt-BELjtxAG7SM',
-  SECRET_KEY: 'E_J2kx6GUuQLY7LGB7-BR8sl0O4DZ_G_VeqjDyqe',
-  DOMAIN_NAME: 'https://assets.noteawesome.com/',
-  BUCKET_NAME: 'blog2'
+/*
+* @Author: Jiang Guoxi
+* @Date:   2017-03-25 00:05:04
+* @Last Modified by:   Jiang Guoxi
+* @Last Modified time: 2017-03-25 00:05:24
+*/
+var public_conf = {
+  DOMAIN_NAME: 'http://onbsowgv2.bkt.clouddn.com/',
+  // 空间名
+  BUCKET_NAME: 'test-2'
 };
 
-window.isHttp = qiniu_conf.DOMAIN_NAME.indexOf('https') !== 0;
+window.isHttp = public_conf.DOMAIN_NAME.indexOf('https') !== 0;
 
 var moxie$1 = createCommonjsModule(function (module) {
 var MXI_DEBUG = true;
@@ -9475,7 +9541,7 @@ var MXI_DEBUG = true;
       /**
       Gets the true type of the built-in object (better version of typeof).
       @author Angus Croll (http://javascriptweblog.wordpress.com/)
-       @method typeOf
+        @method typeOf
       @for Utils
       @static
       @param {Object} o Object to check.
@@ -9498,7 +9564,7 @@ var MXI_DEBUG = true;
 
       /**
       Extends the specified object with another object(s).
-       @method extend
+        @method extend
       @static
       @param {Object} target Object to extend.
       @param {Object} [obj]* Multiple objects to extend with.
@@ -9510,7 +9576,7 @@ var MXI_DEBUG = true;
 
       /**
       Extends the specified object with another object(s), but only if the property exists in the target.
-       @method extendIf
+        @method extendIf
       @static
       @param {Object} target Object to extend.
       @param {Object} [obj]* Multiple objects to extend with.
@@ -9570,7 +9636,7 @@ var MXI_DEBUG = true;
 
       /**
       A way to inherit one `class` from another in a consisstent way (more or less)
-       @method inherit
+        @method inherit
       @static
       @since >1.4.1
       @param {Function} child
@@ -9600,7 +9666,7 @@ var MXI_DEBUG = true;
       /**
       Executes the callback function for each item in array/object. If you return false in the
       callback it will break the loop.
-       @method each
+        @method each
       @static
       @param {Object} obj Object to iterate.
       @param {function} callback Callback function to execute for each item.
@@ -9637,7 +9703,7 @@ var MXI_DEBUG = true;
 
       /**
       Checks if object is empty.
-       @method isEmptyObj
+        @method isEmptyObj
       @static
       @param {Object} o Object to check.
       @return {Boolean}
@@ -9662,7 +9728,7 @@ var MXI_DEBUG = true;
       after everything is complete, main callback is called. Passing truthy value to the
       callback as a first argument will interrupt the sequence and invoke main callback
       immediately.
-       @method inSeries
+        @method inSeries
       @static
       @param {Array} queue Array of functions to call in sequence
       @param {Function} cb Main callback that is called in the end, or in case of error
@@ -9696,7 +9762,7 @@ var MXI_DEBUG = true;
       everything is complete, main callback is called. Passing truthy value to the
       callback as a first argument will interrupt the process and invoke main callback
       immediately.
-       @method inParallel
+        @method inParallel
       @static
       @param {Array} queue Array of functions to call in sequence
       @param {Function} cb Main callback that is called in the end, or in case of erro
@@ -9728,7 +9794,7 @@ var MXI_DEBUG = true;
 
       /**
       Find an element in array and return it's index if present, otherwise return -1.
-       @method inArray
+        @method inArray
       @static
       @param {Mixed} needle Element to find
       @param {Array} array
@@ -9751,7 +9817,7 @@ var MXI_DEBUG = true;
 
       /**
       Returns elements of first array if they are not present in second. And false - otherwise.
-       @private
+        @private
       @method arrayDiff
       @param {Array} needles
       @param {Array} array
@@ -9778,7 +9844,7 @@ var MXI_DEBUG = true;
 
       /**
       Find intersection of two arrays.
-       @private
+        @private
       @method arrayIntersect
       @param {Array} array1
       @param {Array} array2
@@ -9796,7 +9862,7 @@ var MXI_DEBUG = true;
 
       /**
       Forces anything into an array.
-       @method toArray
+        @method toArray
       @static
       @param {Object} obj Object with length field.
       @return {Array} Array object containing all items.
@@ -9817,7 +9883,7 @@ var MXI_DEBUG = true;
       at the same exact millisecond manage to get the same 5 random numbers between 0-65535; it also uses
       a counter so each ID is guaranteed to be unique for the given page. It is more probable for the earth
       to be hit with an asteroid.
-       @method guid
+        @method guid
       @static
       @param {String} prefix to prepend (by default 'o' will be prepended).
       @method guid
@@ -9840,7 +9906,7 @@ var MXI_DEBUG = true;
 
       /**
       Trims white spaces around the string
-       @method trim
+        @method trim
       @static
       @param {String} str
       @return {String}
@@ -9854,7 +9920,7 @@ var MXI_DEBUG = true;
 
       /**
       Parses the specified size string into a byte value. For example 10kb becomes 10240.
-       @method parseSizeStr
+        @method parseSizeStr
       @static
       @param {String/Number} size String to parse or number to just pass through.
       @return {Number} Size in bytes.
@@ -9947,7 +10013,7 @@ var MXI_DEBUG = true;
 
       /**
       Encode string with UTF-8
-       @method utf8_encode
+        @method utf8_encode
       @for Utils
       @static
       @param {String} str String to encode
@@ -9959,7 +10025,7 @@ var MXI_DEBUG = true;
 
       /**
       Decode UTF-8 encoded string
-       @method utf8_decode
+        @method utf8_decode
       @static
       @param {String} str String to decode
       @return {String} Decoded string
@@ -9971,7 +10037,7 @@ var MXI_DEBUG = true;
       /**
       Decode Base64 encoded string (uses browser's default method if available),
       from: https://raw.github.com/kvz/phpjs/master/functions/url/base64_decode.js
-       @method atob
+        @method atob
       @static
       @param {String} data String to decode
       @return {String} Decoded string
@@ -10048,7 +10114,7 @@ var MXI_DEBUG = true;
       /**
       Base64 encode string (uses browser's default method if available),
       from: https://raw.github.com/kvz/phpjs/master/functions/url/base64_encode.js
-       @method btoa
+        @method btoa
       @static
       @param {String} data String to encode
       @return {String} Base64 encoded string
@@ -10628,7 +10694,7 @@ var MXI_DEBUG = true;
                 return true;
               }
             } catch(ex) {}
-             if (Object.prototype.__defineGetter__ && Object.prototype.__defineSetter__) {
+              if (Object.prototype.__defineGetter__ && Object.prototype.__defineSetter__) {
               return true;
             }*/
             return false;
@@ -10946,7 +11012,7 @@ var MXI_DEBUG = true;
 
       /**
       Get DOM Element by it's id.
-       @method get
+        @method get
       @for Utils
       @param {String} id Identifier of the DOM Element
       @return {DOMElement}
@@ -10960,7 +11026,7 @@ var MXI_DEBUG = true;
 
       /**
       Checks if specified DOM element has specified class.
-       @method hasClass
+        @method hasClass
       @static
       @param {Object} obj DOM element like object to add handler to.
       @param {String} name Class name
@@ -10976,7 +11042,7 @@ var MXI_DEBUG = true;
 
       /**
       Adds specified className to specified DOM element.
-       @method addClass
+        @method addClass
       @static
       @param {Object} obj DOM element like object to add handler to.
       @param {String} name Class name
@@ -10989,7 +11055,7 @@ var MXI_DEBUG = true;
 
       /**
       Removes specified className from specified DOM element.
-       @method removeClass
+        @method removeClass
       @static
       @param {Object} obj DOM element like object to add handler to.
       @param {String} name Class name
@@ -11005,7 +11071,7 @@ var MXI_DEBUG = true;
 
       /**
       Returns a given computed style of a DOM element.
-       @method getStyle
+        @method getStyle
       @static
       @param {Object} obj DOM element like object.
       @param {String} name Style you want to get from the DOM element
@@ -11020,7 +11086,7 @@ var MXI_DEBUG = true;
 
       /**
       Returns the absolute x, y position of an Element. The position will be returned in a object with x, y fields.
-       @method getPos
+        @method getPos
       @static
       @param {Element} node HTML element or element id to get x, y position from.
       @param {Element} root Optional root element to stop calculations at.
@@ -11090,7 +11156,7 @@ var MXI_DEBUG = true;
 
       /**
       Returns the size of the specified node in pixels.
-       @method getSize
+        @method getSize
       @static
       @param {Node} node Node to get the size of.
       @return {Object} Object with a w and h property.
@@ -11132,13 +11198,13 @@ var MXI_DEBUG = true;
 
       /**
       Parent object for all event dispatching components and objects
-       @class moxie/core/EventTarget
+        @class moxie/core/EventTarget
       @constructor EventTarget
       */
       function EventTarget() {
         /**
         Unique id of the event dispatcher, usually overriden by children
-         @property uid
+          @property uid
         @type String
         */
         this.uid = Basic.guid();
@@ -11148,7 +11214,7 @@ var MXI_DEBUG = true;
 
         /**
         Can be called from within a child  in order to acquire uniqie id in automated manner
-         @method init
+          @method init
         */
         init: function () {
           if (!this.uid) {
@@ -11158,7 +11224,7 @@ var MXI_DEBUG = true;
 
         /**
         Register a handler to a specific event dispatched by the object
-         @method addEventListener
+          @method addEventListener
         @param {String} type Type or basically a name of the event to subscribe to
         @param {Function} fn Callback function that will be called when event happens
         @param {Number} [priority=0] Priority of the event handler - handlers with higher priorities will be called first
@@ -11197,7 +11263,7 @@ var MXI_DEBUG = true;
 
         /**
         Check if any handlers were registered to the specified event
-         @method hasEventListener
+          @method hasEventListener
         @param {String} [type] Type or basically a name of the event to check
         @return {Mixed} Returns a handler if it was found and false, if - not
         */
@@ -11214,7 +11280,7 @@ var MXI_DEBUG = true;
 
         /**
         Unregister the handler from the event, or if former was not specified - unregister all handlers
-         @method removeEventListener
+          @method removeEventListener
         @param {String} type Type or basically a name of the event
         @param {Function} [fn] Handler to unregister
         */
@@ -11261,7 +11327,7 @@ var MXI_DEBUG = true;
 
         /**
         Remove all event handlers from the object
-         @method removeAllEventListeners
+          @method removeAllEventListeners
         */
         removeAllEventListeners: function () {
           if (eventpool[this.uid]) {
@@ -11271,7 +11337,7 @@ var MXI_DEBUG = true;
 
         /**
         Dispatch the event
-         @method dispatchEvent
+          @method dispatchEvent
         @param {String/Object} Type of event or event object to dispatch
         @param {Mixed} [...] Variable number of arguments to be passed to a handlers
         @return {Boolean} true by default and false if any handler returned false
@@ -11363,7 +11429,7 @@ var MXI_DEBUG = true;
 
         /**
         Register a handler to the event type that will run only once
-         @method bindOnce
+          @method bindOnce
         @since >1.4.1
         @param {String} type Type or basically a name of the event to subscribe to
         @param {Function} fn Callback function that will be called when event happens
@@ -11380,7 +11446,7 @@ var MXI_DEBUG = true;
 
         /**
         Alias for addEventListener
-         @method bind
+          @method bind
         @protected
         */
         bind: function () {
@@ -11389,7 +11455,7 @@ var MXI_DEBUG = true;
 
         /**
         Alias for removeEventListener
-         @method unbind
+          @method unbind
         @protected
         */
         unbind: function () {
@@ -11398,7 +11464,7 @@ var MXI_DEBUG = true;
 
         /**
         Alias for removeAllEventListeners
-         @method unbindAll
+          @method unbindAll
         @protected
         */
         unbindAll: function () {
@@ -11407,7 +11473,7 @@ var MXI_DEBUG = true;
 
         /**
         Alias for dispatchEvent
-         @method trigger
+          @method trigger
         @protected
         */
         trigger: function () {
@@ -11416,7 +11482,7 @@ var MXI_DEBUG = true;
 
         /**
         Handle properties of on[event] type.
-         @method handleEventProps
+          @method handleEventProps
         @private
         */
         handleEventProps: function (dispatches) {
@@ -11463,8 +11529,8 @@ var MXI_DEBUG = true;
 
       /**
       Common set of methods and properties for every runtime instance
-       @class moxie/runtime/Runtime
-       @param {Object} options
+        @class moxie/runtime/Runtime
+        @param {Object} options
       @param {String} type Sanitized name of the runtime
       @param {Object} [caps] Set of capabilities that differentiate specified runtime
       @param {Object} [modeCaps] Set of capabilities that do require specific operational mode
@@ -11474,13 +11540,13 @@ var MXI_DEBUG = true;
         /**
         Dispatched when runtime is initialized and ready.
         Results in RuntimeInit on a connected component.
-         @event Init
+          @event Init
         */
 
         /**
         Dispatched when runtime fails to initialize.
         Results in RuntimeError on a connected component.
-         @event Error
+          @event Error
         */
 
         var self = this,
@@ -11495,7 +11561,7 @@ var MXI_DEBUG = true;
 
         /**
         Default set of capabilities, which can be redifined later by specific runtime
-         @private
+          @private
         @property caps
         @type Object
         */
@@ -11599,7 +11665,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           Specifies whether runtime instance was initialized or not
-           @property initialized
+            @property initialized
           @type {Boolean}
           @default false
           */
@@ -11607,21 +11673,21 @@ var MXI_DEBUG = true;
 
           /**
           Unique ID of the runtime
-           @property uid
+            @property uid
           @type {String}
           */
           uid: _uid,
 
           /**
           Runtime type (e.g. flash, html5, etc)
-           @property type
+            @property type
           @type {String}
           */
           type: type,
 
           /**
           Runtime (not native one) may operate in browser or client mode.
-           @property mode
+            @property mode
           @private
           @type {String|Boolean} current mode or false, if none possible
           */
@@ -11629,28 +11695,28 @@ var MXI_DEBUG = true;
 
           /**
           id of the DOM container for the runtime (if available)
-           @property shimid
+            @property shimid
           @type {String}
           */
           shimid: _uid + '_container',
 
           /**
           Number of connected clients. If equal to zero, runtime can be destroyed
-           @property clients
+            @property clients
           @type {Number}
           */
           clients: 0,
 
           /**
           Runtime initialization options
-           @property options
+            @property options
           @type {Object}
           */
           options: options,
 
           /**
           Checks if the runtime has specific capability
-           @method can
+            @method can
           @param {String} cap Name of capability to check
           @param {Mixed} [value] If passed, capability should somehow correlate to the value
           @param {Object} [refCaps] Set of capabilities to check the specified cap against (defaults to internal set)
@@ -11683,7 +11749,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns container for the runtime as DOM element
-           @method getShimContainer
+            @method getShimContainer
           @return {DOMElement}
           */
           getShimContainer: function () {
@@ -11717,7 +11783,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns runtime as DOM element (if appropriate)
-           @method getShim
+            @method getShim
           @return {DOMElement}
           */
           getShim: function () {
@@ -11726,7 +11792,7 @@ var MXI_DEBUG = true;
 
           /**
           Invokes a method within the runtime itself (might differ across the runtimes)
-           @method shimExec
+            @method shimExec
           @param {Mixed} []
           @protected
           @return {Mixed} Depends on the action and component
@@ -11739,7 +11805,7 @@ var MXI_DEBUG = true;
           /**
           Operaional interface that is used by components to invoke specific actions on the runtime
           (is invoked in the scope of component)
-           @method exec
+            @method exec
           @param {Mixed} []*
           @protected
           @return {Mixed} Depends on the action and component
@@ -11756,7 +11822,7 @@ var MXI_DEBUG = true;
 
           /**
           Destroys the runtime (removes all events and deletes DOM structures)
-           @method destroy
+            @method destroy
           */
           destroy: function () {
             if (!self) {
@@ -11787,7 +11853,7 @@ var MXI_DEBUG = true;
 
       /**
       Default order to try different runtime types
-       @property order
+        @property order
       @type String
       @static
       */
@@ -11795,7 +11861,7 @@ var MXI_DEBUG = true;
 
       /**
       Retrieves runtime from private hash by it's uid
-       @method getRuntime
+        @method getRuntime
       @private
       @static
       @param {String} uid Unique identifier of the runtime
@@ -11807,7 +11873,7 @@ var MXI_DEBUG = true;
 
       /**
       Register constructor for the Runtime of new (or perhaps modified) type
-       @method addConstructor
+        @method addConstructor
       @static
       @param {String} type Runtime type (e.g. flash, html5, etc)
       @param {Function} construct Constructor for the Runtime type
@@ -11819,7 +11885,7 @@ var MXI_DEBUG = true;
 
       /**
       Get the constructor for the specified type.
-       method getConstructor
+        method getConstructor
       @static
       @param {String} type Runtime type (e.g. flash, html5, etc)
       @return {Function} Constructor for the Runtime type
@@ -11830,7 +11896,7 @@ var MXI_DEBUG = true;
 
       /**
       Get info about the runtime (uid, type, capabilities)
-       @method getInfo
+        @method getInfo
       @static
       @param {String} uid Unique identifier of the runtime
       @return {Mixed} Info object or null if runtime doesn't exist
@@ -11853,7 +11919,7 @@ var MXI_DEBUG = true;
 
       /**
       Convert caps represented by a comma-separated string to the object representation.
-       @method parseCaps
+        @method parseCaps
       @static
       @param {String} capStr Comma-separated list of capabilities
       @return {Object}
@@ -11874,7 +11940,7 @@ var MXI_DEBUG = true;
 
       /**
       Test the specified runtime for specific capabilities.
-       @method can
+        @method can
       @static
       @param {String} type Runtime type (e.g. flash, html5, etc)
       @param {String|Object} caps Set of capabilities to check
@@ -11897,7 +11963,7 @@ var MXI_DEBUG = true;
 
       /**
       Figure out a runtime that supports specified capabilities.
-       @method thatCan
+        @method thatCan
       @static
       @param {String|Object} caps Set of capabilities to check
       @param {String} [runtimeOrder] Comma-separated list of runtimes to check against
@@ -11915,7 +11981,7 @@ var MXI_DEBUG = true;
 
       /**
       Figure out an operational mode for the specified set of capabilities.
-       @method getMode
+        @method getMode
       @static
       @param {Object} modeCaps Set of capabilities that depend on particular runtime mode
       @param {Object} [requiredCaps] Supplied set of capabilities to find operational mode for
@@ -11970,7 +12036,7 @@ var MXI_DEBUG = true;
 
       /**
       Capability check that always returns true
-       @private
+        @private
       @static
       @return {True}
       */
@@ -11980,7 +12046,7 @@ var MXI_DEBUG = true;
 
       /**
       Capability check that always returns false
-       @private
+        @private
       @static
       @return {False}
       */
@@ -11990,7 +12056,7 @@ var MXI_DEBUG = true;
 
       /**
       Evaluate the expression to boolean value and create a function that always returns it.
-       @private
+        @private
       @static
       @param {Mixed} expr Expression to evaluate
       @return {Function} Function returning the result of evaluation
@@ -12019,7 +12085,7 @@ var MXI_DEBUG = true;
     define('moxie/runtime/RuntimeClient', ['moxie/core/utils/Env', 'moxie/core/Exceptions', 'moxie/core/utils/Basic', 'moxie/runtime/Runtime'], function (Env, x, Basic, Runtime) {
       /**
       Set of methods and properties, required by a component to acquire ability to connect to a runtime
-       @class moxie/runtime/RuntimeClient
+        @class moxie/runtime/RuntimeClient
       */
       return function RuntimeClient() {
         var runtime;
@@ -12028,7 +12094,7 @@ var MXI_DEBUG = true;
           /**
           Connects to the runtime specified by the options. Will either connect to existing runtime or create a new one.
           Increments number of clients connected to the specified runtime.
-           @private
+            @private
           @method connectRuntime
           @param {Mixed} options Can be a runtme uid or a set of key-value pairs defining requirements and pre-requisites
           */
@@ -12137,7 +12203,7 @@ var MXI_DEBUG = true;
 
           /**
           Disconnects from the runtime. Decrements number of clients connected to the specified runtime.
-           @private
+            @private
           @method disconnectRuntime
           */
           disconnectRuntime: function () {
@@ -12151,7 +12217,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns the runtime to which the client is currently connected.
-           @method getRuntime
+            @method getRuntime
           @return {Runtime} Runtime or null if client is not connected
           */
           getRuntime: function () {
@@ -12163,7 +12229,7 @@ var MXI_DEBUG = true;
 
           /**
           Handy shortcut to safely invoke runtime extension methods.
-           @private
+            @private
           @method exec
           @return {Mixed} Whatever runtime extension method returns
           */
@@ -12173,7 +12239,7 @@ var MXI_DEBUG = true;
 
           /**
           Test runtime client for specific capability
-           @method can
+            @method can
           @param {String} cap
           @return {Bool}
           */
@@ -12243,7 +12309,7 @@ var MXI_DEBUG = true;
 
           /**
           Unique id of the component
-           @property uid
+            @property uid
           @type {String}
           */
           uid: blob.uid || Basic.guid('uid_'),
@@ -12251,14 +12317,14 @@ var MXI_DEBUG = true;
           /**
           Unique id of the connected runtime, if falsy, then runtime will have to be initialized
           before this Blob can be used, modified or sent
-           @property ruid
+            @property ruid
           @type {String}
           */
           ruid: ruid,
 
           /**
           Size of blob
-           @property size
+            @property size
           @type {Number}
           @default 0
           */
@@ -12266,7 +12332,7 @@ var MXI_DEBUG = true;
 
           /**
           Mime type of blob
-           @property type
+            @property type
           @type {String}
           @default ''
           */
@@ -12285,7 +12351,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns "native" blob object (as it is represented in connected runtime) or null if not found
-           @method getSource
+            @method getSource
           @return {Blob} Returns "native" blob object or null if not found
           */
           getSource: function () {
@@ -12297,7 +12363,7 @@ var MXI_DEBUG = true;
 
           /**
           Detaches blob from any runtime that it depends on and initialize with standalone value
-           @method detach
+            @method detach
           @protected
           @param {DOMString} [data=''] Standalone value
           */
@@ -12324,7 +12390,7 @@ var MXI_DEBUG = true;
 
           /**
           Checks if blob is standalone (detached of any runtime)
-           @method isDetached
+            @method isDetached
           @protected
           @return {Boolean}
           */
@@ -12334,7 +12400,7 @@ var MXI_DEBUG = true;
 
           /**
           Destroy Blob and free any resources it was using
-           @method destroy
+            @method destroy
           */
           destroy: function () {
             this.detach();
@@ -12580,7 +12646,7 @@ var MXI_DEBUG = true;
       Provides a convenient way to create cross-browser file-picker. Generates file selection dialog on click,
       converts selected files to _File_ objects, to be used in conjunction with _Image_, preloaded in memory
       with _FileReader_ or uploaded to a server through _XMLHttpRequest_.
-       @class moxie/file/FileInput
+        @class moxie/file/FileInput
       @constructor
       @extends EventTarget
       @uses RuntimeClient
@@ -12592,11 +12658,11 @@ var MXI_DEBUG = true;
         @param {String|DOMElement} [options.container] DOM Element to use as a container for file-picker. Defaults to parentNode
         for _browse\_button_.
         @param {Object|String} [options.required_caps] Set of required capabilities, that chosen runtime must support.
-       @example
+        @example
         <div id="container">
           <a id="file-picker" href="javascript:;">Browse...</a>
         </div>
-         <script>
+          <script>
           var fileInput = new mOxie.FileInput({
             browse_button: 'file-picker', // or document.getElementById('file-picker')
             container: 'container',
@@ -12605,17 +12671,17 @@ var MXI_DEBUG = true;
             ],
             multiple: true // allow multiple file selection
           });
-           fileInput.onchange = function(e) {
+            fileInput.onchange = function(e) {
             // do something to files array
             console.info(e.target.files); // or this.files or fileInput.files
           };
-           fileInput.init(); // initialize
+            fileInput.init(); // initialize
         </script>
       */
       var dispatches = [
       /**
       Dispatched when runtime is connected and file-picker is ready to be used.
-       @event ready
+        @event ready
       @param {Object} event
       */
       'ready',
@@ -12623,13 +12689,13 @@ var MXI_DEBUG = true;
       /**
       Dispatched right after [ready](#event_ready) event, and whenever [refresh()](#method_refresh) is invoked.
       Check [corresponding documentation entry](#method_refresh) for more info.
-       @event refresh
+        @event refresh
       @param {Object} event
       */
 
       /**
       Dispatched when selection of files in the dialog is complete.
-       @event change
+        @event change
       @param {Object} event
       */
       'change', 'cancel', // TODO: might be useful
@@ -12637,7 +12703,7 @@ var MXI_DEBUG = true;
       /**
       Dispatched when mouse cursor enters file-picker area. Can be used to style element
       accordingly.
-       @event mouseenter
+        @event mouseenter
       @param {Object} event
       */
       'mouseenter',
@@ -12645,21 +12711,21 @@ var MXI_DEBUG = true;
       /**
       Dispatched when mouse cursor leaves file-picker area. Can be used to style element
       accordingly.
-       @event mouseleave
+        @event mouseleave
       @param {Object} event
       */
       'mouseleave',
 
       /**
       Dispatched when functional mouse button is pressed on top of file-picker area.
-       @event mousedown
+        @event mousedown
       @param {Object} event
       */
       'mousedown',
 
       /**
       Dispatched when functional mouse button is released on top of file-picker area.
-       @event mouseup
+        @event mouseup
       @param {Object} event
       */
       'mouseup'];
@@ -12724,7 +12790,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           Unique id of the component
-           @property uid
+            @property uid
           @protected
           @readOnly
           @type {String}
@@ -12734,7 +12800,7 @@ var MXI_DEBUG = true;
 
           /**
           Unique id of the connected runtime, if any.
-           @property ruid
+            @property ruid
           @protected
           @type {String}
           */
@@ -12742,7 +12808,7 @@ var MXI_DEBUG = true;
 
           /**
           Unique id of the runtime container. Useful to get hold of it for various manipulations.
-           @property shimid
+            @property shimid
           @protected
           @type {String}
           */
@@ -12750,7 +12816,7 @@ var MXI_DEBUG = true;
 
           /**
           Array of selected mOxie.File objects
-           @property files
+            @property files
           @type {Array}
           @default null
           */
@@ -12758,7 +12824,7 @@ var MXI_DEBUG = true;
 
           /**
           Initializes the file-picker, connects it to runtime and dispatches event ready when done.
-           @method init
+            @method init
           */
           init: function () {
             var self = this;
@@ -12852,7 +12918,7 @@ var MXI_DEBUG = true;
 
           /**
           Disables file-picker element, so that it doesn't react to mouse clicks.
-           @method disable
+            @method disable
           @param {Boolean} [state=true] Disable component if - true, enable if - false
           */
           disable: function (state) {
@@ -12864,7 +12930,7 @@ var MXI_DEBUG = true;
 
           /**
           Reposition and resize dialog trigger to match the position and size of browse_button element.
-           @method refresh
+            @method refresh
           */
           refresh: function () {
             this.trigger("Refresh");
@@ -12872,7 +12938,7 @@ var MXI_DEBUG = true;
 
           /**
           Destroy component.
-           @method destroy
+            @method destroy
           */
           destroy: function () {
             var runtime = this.getRuntime();
@@ -12950,7 +13016,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           File name
-           @property name
+            @property name
           @type {String}
           @default UID
           */
@@ -12958,7 +13024,7 @@ var MXI_DEBUG = true;
 
           /**
           Relative path to the file inside a directory
-           @property relativePath
+            @property relativePath
           @type {String}
           @default ''
           */
@@ -12966,7 +13032,7 @@ var MXI_DEBUG = true;
 
           /**
           Date of last modification
-           @property lastModifiedDate
+            @property lastModifiedDate
           @type {String}
           @default now
           */
@@ -12996,22 +13062,22 @@ var MXI_DEBUG = true;
       Turn arbitrary DOM element to a drop zone accepting files. Converts selected files to _File_ objects, to be used
       in conjunction with _Image_, preloaded in memory with _FileReader_ or uploaded to a server through
       _XMLHttpRequest_.
-       @example
+        @example
         <div id="drop_zone">
           Drop files here
         </div>
         <br />
         <div id="filelist"></div>
-         <script type="text/javascript">
+          <script type="text/javascript">
           var fileDrop = new mOxie.FileDrop('drop_zone'), fileList = mOxie.get('filelist');
-           fileDrop.ondrop = function() {
+            fileDrop.ondrop = function() {
             mOxie.each(this.files, function(file) {
               fileList.innerHTML += '<div>' + file.name + '</div>';
             });
           };
-           fileDrop.init();
+            fileDrop.init();
         </script>
-       @class moxie/file/FileDrop
+        @class moxie/file/FileDrop
       @constructor
       @extends EventTarget
       @uses RuntimeClient
@@ -13023,35 +13089,35 @@ var MXI_DEBUG = true;
       var dispatches = [
       /**
       Dispatched when runtime is connected and drop zone is ready to accept files.
-       @event ready
+        @event ready
       @param {Object} event
       */
       'ready',
 
       /**
       Dispatched when dragging cursor enters the drop zone.
-       @event dragenter
+        @event dragenter
       @param {Object} event
       */
       'dragenter',
 
       /**
       Dispatched when dragging cursor leaves the drop zone.
-       @event dragleave
+        @event dragleave
       @param {Object} event
       */
       'dragleave',
 
       /**
       Dispatched when file is dropped onto the drop zone.
-       @event drop
+        @event drop
       @param {Object} event
       */
       'drop',
 
       /**
       Dispatched if error occurs.
-       @event error
+        @event error
       @param {Object} event
       */
       'error'];
@@ -13151,7 +13217,7 @@ var MXI_DEBUG = true;
       /**
       Utility for preloading o.Blob/o.File objects in memory. By design closely follows [W3C FileReader](http://www.w3.org/TR/FileAPI/#dfn-filereader)
       interface. Where possible uses native FileReader, where - not falls back to shims.
-       @class moxie/file/FileReader
+        @class moxie/file/FileReader
       @constructor FileReader
       @extends EventTarget
       @uses RuntimeClient
@@ -13160,42 +13226,42 @@ var MXI_DEBUG = true;
 
       /**
       Dispatched when the read starts.
-       @event loadstart
+        @event loadstart
       @param {Object} event
       */
       'loadstart',
 
       /**
       Dispatched while reading (and decoding) blob, and reporting partial Blob data (progess.loaded/progress.total).
-       @event progress
+        @event progress
       @param {Object} event
       */
       'progress',
 
       /**
       Dispatched when the read has successfully completed.
-       @event load
+        @event load
       @param {Object} event
       */
       'load',
 
       /**
       Dispatched when the read has been aborted. For instance, by invoking the abort() method.
-       @event abort
+        @event abort
       @param {Object} event
       */
       'abort',
 
       /**
       Dispatched when the read has failed.
-       @event error
+        @event error
       @param {Object} event
       */
       'error',
 
       /**
       Dispatched when the request has completed (either in success or failure).
-       @event loadend
+        @event loadend
       @param {Object} event
       */
       'loadend'];
@@ -13207,7 +13273,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           UID of the component instance.
-           @property uid
+            @property uid
           @type {String}
           */
           uid: Basic.guid('uid_'),
@@ -13215,7 +13281,7 @@ var MXI_DEBUG = true;
           /**
           Contains current state of FileReader object. Can take values of FileReader.EMPTY, FileReader.LOADING
           and FileReader.DONE.
-           @property readyState
+            @property readyState
           @type {Number}
           @default FileReader.EMPTY
           */
@@ -13223,21 +13289,21 @@ var MXI_DEBUG = true;
 
           /**
           Result of the successful read operation.
-           @property result
+            @property result
           @type {String}
           */
           result: null,
 
           /**
           Stores the error of failed asynchronous read operation.
-           @property error
+            @property error
           @type {DOMError}
           */
           error: null,
 
           /**
           Initiates reading of File/Blob object contents to binary string.
-           @method readAsBinaryString
+            @method readAsBinaryString
           @param {Blob|File} blob Object to preload
           */
           readAsBinaryString: function (blob) {
@@ -13246,7 +13312,7 @@ var MXI_DEBUG = true;
 
           /**
           Initiates reading of File/Blob object contents to dataURL string.
-           @method readAsDataURL
+            @method readAsDataURL
           @param {Blob|File} blob Object to preload
           */
           readAsDataURL: function (blob) {
@@ -13255,7 +13321,7 @@ var MXI_DEBUG = true;
 
           /**
           Initiates reading of File/Blob object contents to string.
-           @method readAsText
+            @method readAsText
           @param {Blob|File} blob Object to preload
           */
           readAsText: function (blob) {
@@ -13264,7 +13330,7 @@ var MXI_DEBUG = true;
 
           /**
           Aborts preloading process.
-           @method abort
+            @method abort
           */
           abort: function () {
             this.result = null;
@@ -13283,7 +13349,7 @@ var MXI_DEBUG = true;
 
           /**
           Destroy component and release resources.
-           @method destroy
+            @method destroy
           */
           destroy: function () {
             this.abort();
@@ -13349,7 +13415,7 @@ var MXI_DEBUG = true;
 
       /**
       Initial FileReader state
-       @property EMPTY
+        @property EMPTY
       @type {Number}
       @final
       @static
@@ -13359,7 +13425,7 @@ var MXI_DEBUG = true;
 
       /**
       FileReader switches to this state when it is preloading the source
-       @property LOADING
+        @property LOADING
       @type {Number}
       @final
       @static
@@ -13369,7 +13435,7 @@ var MXI_DEBUG = true;
 
       /**
       Preloading is complete, this is a final state
-       @property DONE
+        @property DONE
       @type {Number}
       @final
       @static
@@ -13398,7 +13464,7 @@ var MXI_DEBUG = true;
       /**
       Parse url into separate components and fill in absent parts with parts from current url,
       based on https://raw.github.com/kvz/phpjs/master/functions/url/parse_url.js
-       @method parseUrl
+        @method parseUrl
       @for Utils
       @static
       @param {String} url Url to parse (defaults to empty string if undefined)
@@ -13476,7 +13542,7 @@ var MXI_DEBUG = true;
 
       /**
       Resolve url - among other things will turn relative url to absolute
-       @method resolveUrl
+        @method resolveUrl
       @static
       @param {String|Object} url Either absolute or relative, or a result of parseUrl call
       @return {String} Resolved, absolute url
@@ -13494,7 +13560,7 @@ var MXI_DEBUG = true;
 
       /**
       Check if specified url has the same origin as the current document
-       @method hasSameOrigin
+        @method hasSameOrigin
       @param {String|Object} url
       @return {Boolean}
       */
@@ -13533,7 +13599,7 @@ var MXI_DEBUG = true;
       /**
       Instance of this class can be used as a target for the events dispatched by shims,
       when allowing them onto components is for either reason inappropriate
-       @class moxie/runtime/RuntimeTarget
+        @class moxie/runtime/RuntimeTarget
       @constructor
       @protected
       @extends EventTarget
@@ -13571,7 +13637,7 @@ var MXI_DEBUG = true;
       Synchronous FileReader implementation. Something like this is available in WebWorkers environment, here
       it can be used to read only preloaded blobs/files and only below certain size (not yet sure what that'd be,
       but probably < 1mb). Not meant to be used directly by user.
-       @class moxie/file/FileReaderSync
+        @class moxie/file/FileReaderSync
       @private
       @constructor
       */
@@ -13637,7 +13703,7 @@ var MXI_DEBUG = true;
     define("moxie/xhr/FormData", ["moxie/core/Exceptions", "moxie/core/utils/Basic", "moxie/file/Blob"], function (x, Basic, Blob) {
       /**
       FormData
-       @class moxie/xhr/FormData
+        @class moxie/xhr/FormData
       @constructor
       */
       function FormData() {
@@ -13647,7 +13713,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           Append another key-value pair to the FormData object
-           @method append
+            @method append
           @param {String} name Name for the new field
           @param {String|Blob|Array|Object} value Value for the field
           */
@@ -13683,7 +13749,7 @@ var MXI_DEBUG = true;
 
           /**
           Checks if FormData contains Blob.
-           @method hasBlob
+            @method hasBlob
           @return {Boolean}
           */
           hasBlob: function () {
@@ -13692,7 +13758,7 @@ var MXI_DEBUG = true;
 
           /**
           Retrieves blob.
-           @method getBlob
+            @method getBlob
           @return {Object} Either Blob if found or null
           */
           getBlob: function () {
@@ -13701,7 +13767,7 @@ var MXI_DEBUG = true;
 
           /**
           Retrieves blob field name.
-           @method getBlobName
+            @method getBlobName
           @return {String} Either Blob field name or null
           */
           getBlobName: function () {
@@ -13710,7 +13776,7 @@ var MXI_DEBUG = true;
 
           /**
           Loop over the fields in FormData and invoke the callback for each of them.
-           @method each
+            @method each
           @param {Function} cb Callback to call for each field
           */
           each: function (cb) {
@@ -13813,7 +13879,7 @@ var MXI_DEBUG = true;
 
       /**
       Implementation of XMLHttpRequest
-       @class moxie/xhr/XMLHttpRequest
+        @class moxie/xhr/XMLHttpRequest
       @constructor
       @uses RuntimeClient
       @extends EventTarget
@@ -13833,7 +13899,7 @@ var MXI_DEBUG = true;
         props = {
           /**
           The amount of milliseconds a request can take before being terminated. Initially zero. Zero means there is no timeout.
-           @property timeout
+            @property timeout
           @type Number
           @default 0
           */
@@ -13843,14 +13909,14 @@ var MXI_DEBUG = true;
           Current state, can take following values:
           UNSENT (numeric value 0)
           The object has been constructed.
-           OPENED (numeric value 1)
+            OPENED (numeric value 1)
           The open() method has been successfully invoked. During this state request headers can be set using setRequestHeader() and the request can be made using the send() method.
-           HEADERS_RECEIVED (numeric value 2)
+            HEADERS_RECEIVED (numeric value 2)
           All redirects (if any) have been followed and all HTTP headers of the final response have been received. Several response members of the object are now available.
-           LOADING (numeric value 3)
+            LOADING (numeric value 3)
           The response entity body is being received.
-           DONE (numeric value 4)
-           @property readyState
+            DONE (numeric value 4)
+            @property readyState
           @type Number
           @default 0 (UNSENT)
           */
@@ -13859,7 +13925,7 @@ var MXI_DEBUG = true;
           /**
           True when user credentials are to be included in a cross-origin request. False when they are to be excluded
           in a cross-origin request and when cookies are to be ignored in its response. Initially false.
-           @property withCredentials
+            @property withCredentials
           @type Boolean
           @default false
           */
@@ -13867,7 +13933,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns the HTTP status code.
-           @property status
+            @property status
           @type Number
           @default 0
           */
@@ -13875,7 +13941,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns the HTTP status text.
-           @property statusText
+            @property statusText
           @type String
           */
           statusText: "",
@@ -13883,23 +13949,23 @@ var MXI_DEBUG = true;
           /**
           Returns the response type. Can be set to change the response type. Values are:
           the empty string (default), "arraybuffer", "blob", "document", "json", and "text".
-           @property responseType
+            @property responseType
           @type String
           */
           responseType: "",
 
           /**
           Returns the document response entity body.
-           Throws an "InvalidStateError" exception if responseType is not the empty string or "document".
-           @property responseXML
+            Throws an "InvalidStateError" exception if responseType is not the empty string or "document".
+            @property responseXML
           @type Document
           */
           responseXML: null,
 
           /**
           Returns the text response entity body.
-           Throws an "InvalidStateError" exception if responseType is not the empty string or "text".
-           @property responseText
+            Throws an "InvalidStateError" exception if responseType is not the empty string or "text".
+            @property responseText
           @type String
           */
           responseText: null,
@@ -13907,7 +13973,7 @@ var MXI_DEBUG = true;
           /**
           Returns the response entity body (http://www.w3.org/TR/XMLHttpRequest/#response-entity-body).
           Can become: ArrayBuffer, Blob, Document, JSON, Text
-           @property response
+            @property response
           @type Mixed
           */
           response: null
@@ -13944,30 +14010,30 @@ var MXI_DEBUG = true;
         Basic.extend(this, props, {
           /**
           Unique id of the component
-           @property uid
+            @property uid
           @type String
           */
           uid: Basic.guid('uid_'),
 
           /**
           Target for Upload events
-           @property upload
+            @property upload
           @type XMLHttpRequestUpload
           */
           upload: new XMLHttpRequestUpload(),
 
           /**
           Sets the request method, request URL, synchronous flag, request username, and request password.
-           Throws a "SyntaxError" exception if one of the following is true:
-           method is not a valid HTTP method.
+            Throws a "SyntaxError" exception if one of the following is true:
+            method is not a valid HTTP method.
           url cannot be resolved.
           url contains the "user:password" format in the userinfo production.
           Throws a "SecurityError" exception if method is a case-insensitive match for CONNECT, TRACE or TRACK.
-           Throws an "InvalidAccessError" exception if one of the following is true:
-           Either user or password is passed as argument and the origin of url does not match the XMLHttpRequest origin.
+            Throws an "InvalidAccessError" exception if one of the following is true:
+            Either user or password is passed as argument and the origin of url does not match the XMLHttpRequest origin.
           There is an associated XMLHttpRequest document and either the timeout attribute is not zero,
           the withCredentials attribute is true, or the responseType attribute is not the empty string.
-            @method open
+              @method open
           @param {String} method HTTP method to use on request
           @param {String} url URL to request
           @param {Boolean} [async=true] If false request will be done in synchronous manner. Asynchronous by default.
@@ -14043,10 +14109,10 @@ var MXI_DEBUG = true;
           /**
           Appends an header to the list of author request headers, or if header is already
           in the list of author request headers, combines its value with value.
-           Throws an "InvalidStateError" exception if the state is not OPENED or if the send() flag is set.
+            Throws an "InvalidStateError" exception if the state is not OPENED or if the send() flag is set.
           Throws a "SyntaxError" exception if header is not a valid HTTP header field name or if value
           is not a valid HTTP header field value.
-           @method setRequestHeader
+            @method setRequestHeader
           @param {String} header
           @param {String|Number} value
           */
@@ -14104,7 +14170,7 @@ var MXI_DEBUG = true;
 
           /**
           Returns all headers from the response, with the exception of those whose field name is Set-Cookie or Set-Cookie2.
-           @method getAllResponseHeaders
+            @method getAllResponseHeaders
           @return {String} reponse headers or empty string
           */
           getAllResponseHeaders: function () {
@@ -14114,7 +14180,7 @@ var MXI_DEBUG = true;
           /**
           Returns the header field value from the response of which the field name matches header,
           unless the field name is Set-Cookie or Set-Cookie2.
-           @method getResponseHeader
+            @method getResponseHeader
           @param {String} header
           @return {String} value(s) for the specified header or null
           */
@@ -14152,7 +14218,7 @@ var MXI_DEBUG = true;
           Sets the Content-Type header for the response to mime.
           Throws an "InvalidStateError" exception if the state is LOADING or DONE.
           Throws a "SyntaxError" exception if mime is not a valid media type.
-           @method overrideMimeType
+            @method overrideMimeType
           @param String mime Mime type to set
           */
           overrideMimeType: function (mime) {
@@ -14185,8 +14251,8 @@ var MXI_DEBUG = true;
           /**
           Initiates the request. The optional argument provides the request entity body.
           The argument is ignored if request method is GET or HEAD.
-           Throws an "InvalidStateError" exception if the state is not OPENED or if the send() flag is set.
-           @method send
+            Throws an "InvalidStateError" exception if the state is not OPENED or if the send() flag is set.
+            @method send
           @param {Blob|Document|String|FormData} [data] Request entity body
           @param {Object} [options] Set of requirements and pre-requisities for runtime initialization
           */
@@ -14258,7 +14324,7 @@ var MXI_DEBUG = true;
 
           /**
           Cancels any network activity.
-           @method abort
+            @method abort
           */
           abort: function () {
             _error_flag = true;
@@ -14301,119 +14367,119 @@ var MXI_DEBUG = true;
         this.upload.handleEventProps(dispatches);
 
         /* this is nice, but maybe too lengthy
-         // if supported by JS version, set getters/setters for specific properties
+          // if supported by JS version, set getters/setters for specific properties
         o.defineProperty(this, 'readyState', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('readyState');
           }
         });
-         o.defineProperty(this, 'timeout', {
+          o.defineProperty(this, 'timeout', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('timeout');
           },
-           set: function(value) {
-             if (_sync_flag) {
+            set: function(value) {
+              if (_sync_flag) {
               throw new x.DOMException(x.DOMException.INVALID_ACCESS_ERR);
             }
-             // timeout still should be measured relative to the start time of request
+              // timeout still should be measured relative to the start time of request
             _timeoutset_time = (new Date).getTime();
-             _p('timeout', value);
+              _p('timeout', value);
           }
         });
-         // the withCredentials attribute has no effect when fetching same-origin resources
+          // the withCredentials attribute has no effect when fetching same-origin resources
         o.defineProperty(this, 'withCredentials', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('withCredentials');
           },
-           set: function(value) {
+            set: function(value) {
             // 1-2
             if (!~o.inArray(_p('readyState'), [XMLHttpRequest.UNSENT, XMLHttpRequest.OPENED]) || _send_flag) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             // 3-4
+              // 3-4
             if (_anonymous_flag || _sync_flag) {
               throw new x.DOMException(x.DOMException.INVALID_ACCESS_ERR);
             }
-             // 5
+              // 5
             _p('withCredentials', value);
           }
         });
-         o.defineProperty(this, 'status', {
+          o.defineProperty(this, 'status', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('status');
           }
         });
-         o.defineProperty(this, 'statusText', {
+          o.defineProperty(this, 'statusText', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('statusText');
           }
         });
-         o.defineProperty(this, 'responseType', {
+          o.defineProperty(this, 'responseType', {
           configurable: false,
-           get: function() {
+            get: function() {
             return _p('responseType');
           },
-           set: function(value) {
+            set: function(value) {
             // 1
             if (!!~o.inArray(_p('readyState'), [XMLHttpRequest.LOADING, XMLHttpRequest.DONE])) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             // 2
+              // 2
             if (_sync_flag) {
               throw new x.DOMException(x.DOMException.INVALID_ACCESS_ERR);
             }
-             // 3
+              // 3
             _p('responseType', value.toLowerCase());
           }
         });
-         o.defineProperty(this, 'responseText', {
+          o.defineProperty(this, 'responseText', {
           configurable: false,
-           get: function() {
+            get: function() {
             // 1
             if (!~o.inArray(_p('responseType'), ['', 'text'])) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             // 2-3
+              // 2-3
             if (_p('readyState') !== XMLHttpRequest.DONE && _p('readyState') !== XMLHttpRequest.LOADING || _error_flag) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             return _p('responseText');
+              return _p('responseText');
           }
         });
-         o.defineProperty(this, 'responseXML', {
+          o.defineProperty(this, 'responseXML', {
           configurable: false,
-           get: function() {
+            get: function() {
             // 1
             if (!~o.inArray(_p('responseType'), ['', 'document'])) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             // 2-3
+              // 2-3
             if (_p('readyState') !== XMLHttpRequest.DONE || _error_flag) {
               throw new x.DOMException(x.DOMException.INVALID_STATE_ERR);
             }
-             return _p('responseXML');
+              return _p('responseXML');
           }
         });
-         o.defineProperty(this, 'response', {
+          o.defineProperty(this, 'response', {
           configurable: false,
-           get: function() {
+            get: function() {
             if (!!~o.inArray(_p('responseType'), ['', 'text'])) {
               if (_p('readyState') !== XMLHttpRequest.DONE && _p('readyState') !== XMLHttpRequest.LOADING || _error_flag) {
                 return '';
               }
             }
-             if (_p('readyState') !== XMLHttpRequest.DONE || _error_flag) {
+              if (_p('readyState') !== XMLHttpRequest.DONE || _error_flag) {
               return null;
             }
-             return _p('response');
+              return _p('response');
           }
         });
-         */
+          */
 
         function _p(prop, value) {
           if (!props.hasOwnProperty(prop)) {
@@ -14753,7 +14819,7 @@ var MXI_DEBUG = true;
     define("moxie/image/Image", ["moxie/core/utils/Basic", "moxie/core/utils/Dom", "moxie/core/Exceptions", "moxie/file/FileReaderSync", "moxie/xhr/XMLHttpRequest", "moxie/runtime/Runtime", "moxie/runtime/RuntimeClient", "moxie/runtime/Transporter", "moxie/core/utils/Env", "moxie/core/EventTarget", "moxie/file/Blob", "moxie/file/File", "moxie/core/utils/Encode"], function (Basic, Dom, x, FileReaderSync, XMLHttpRequest, Runtime, RuntimeClient, Transporter, Env, EventTarget, Blob, File, Encode) {
       /**
       Image preloading and manipulation utility. Additionally it provides access to image meta info (Exif, GPS) and raw binary data.
-       @class moxie/image/Image
+        @class moxie/image/Image
       @constructor
       @extends EventTarget
       */
@@ -14761,14 +14827,14 @@ var MXI_DEBUG = true;
 
       /**
       Dispatched when loading is complete.
-       @event load
+        @event load
       @param {Object} event
       */
       'load', 'error',
 
       /**
       Dispatched when resize operation is complete.
-       @event resize
+        @event resize
       @param {Object} event
       */
       'resize',
@@ -14776,7 +14842,7 @@ var MXI_DEBUG = true;
       /**
       Dispatched when visual representation of the image is successfully embedded
       into the corresponsing container.
-       @event embedded
+        @event embedded
       @param {Object} event
       */
       'embedded'];
@@ -14788,21 +14854,21 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           Unique id of the component
-           @property uid
+            @property uid
           @type {String}
           */
           uid: Basic.guid('uid_'),
 
           /**
           Unique id of the connected runtime, if any.
-           @property ruid
+            @property ruid
           @type {String}
           */
           ruid: null,
 
           /**
           Name of the file, that was used to create an image, if available. If not equals to empty string.
-           @property name
+            @property name
           @type {String}
           @default ""
           */
@@ -14810,7 +14876,7 @@ var MXI_DEBUG = true;
 
           /**
           Size of the image in bytes. Actual value is set only after image is preloaded.
-           @property size
+            @property size
           @type {Number}
           @default 0
           */
@@ -14818,7 +14884,7 @@ var MXI_DEBUG = true;
 
           /**
           Width of the image. Actual value is set only after image is preloaded.
-           @property width
+            @property width
           @type {Number}
           @default 0
           */
@@ -14826,7 +14892,7 @@ var MXI_DEBUG = true;
 
           /**
           Height of the image. Actual value is set only after image is preloaded.
-           @property height
+            @property height
           @type {Number}
           @default 0
           */
@@ -14834,7 +14900,7 @@ var MXI_DEBUG = true;
 
           /**
           Mime type of the image. Currently only image/jpeg and image/png are supported. Actual value is set only after image is preloaded.
-           @property type
+            @property type
           @type {String}
           @default ""
           */
@@ -14842,7 +14908,7 @@ var MXI_DEBUG = true;
 
           /**
           Holds meta info (Exif, GPS). Is populated only for image/jpeg. Actual value is set only after image is preloaded.
-           @property meta
+            @property meta
           @type {Object}
           @default {}
           */
@@ -14850,7 +14916,7 @@ var MXI_DEBUG = true;
 
           /**
           Alias for load method, that takes another mOxie.Image object as a source (see load).
-           @method clone
+            @method clone
           @param {Image} src Source for the image
           @param {Boolean} [exact=false] Whether to activate in-depth clone mode
           */
@@ -14862,13 +14928,13 @@ var MXI_DEBUG = true;
           Loads image from various sources. Currently the source for new image can be: mOxie.Image, mOxie.Blob/mOxie.File,
           native Blob/File, dataUrl or URL. Depending on the type of the source, arguments - differ. When source is URL,
           Image will be downloaded from remote destination and loaded in memory.
-           @example
+            @example
             var img = new mOxie.Image();
             img.onload = function() {
               var blob = img.getAsBlob();
-               var formData = new mOxie.FormData();
+                var formData = new mOxie.FormData();
               formData.append('file', blob);
-               var xhr = new mOxie.XMLHttpRequest();
+                var xhr = new mOxie.XMLHttpRequest();
               xhr.onload = function() {
                 // upload complete
               };
@@ -14876,7 +14942,7 @@ var MXI_DEBUG = true;
               xhr.send(formData);
             };
             img.load("http://www.moxiecode.com/images/mox-logo.jpg"); // notice file extension (.jpg)
-            @method load
+              @method load
           @param {Image|Blob|File|String} src Source for the image
           @param {Boolean|Object} [mixed]
           */
@@ -14887,7 +14953,7 @@ var MXI_DEBUG = true;
           /**
           Resizes the image to fit the specified width/height. If crop is specified, image will also be
           cropped to the exact dimensions.
-           @method resize
+            @method resize
           @since 3.0
           @param {Object} options
             @param {Number} options.width Resulting width
@@ -15042,7 +15108,7 @@ var MXI_DEBUG = true;
 
           /**
           Downsizes the image to fit the specified width/height. If crop is supplied, image will be cropped to exact dimensions.
-           @method downsize
+            @method downsize
           @deprecated use resize()
           */
           downsize: function (options) {
@@ -15074,7 +15140,7 @@ var MXI_DEBUG = true;
 
           /**
           Alias for downsize(width, height, true). (see downsize)
-           @method crop
+            @method crop
           @param {Number} width Resulting width
           @param {Number} [height=width] Resulting height (optional, if not supplied will default to width)
           @param {Boolean} [preserveHeaders=true] Whether to preserve meta headers (on JPEGs after resize)
@@ -15093,7 +15159,7 @@ var MXI_DEBUG = true;
           /**
           Retrieves image in it's current state as mOxie.Blob object. Cannot be run on empty or image in progress (throws
           DOMException.INVALID_STATE_ERR).
-           @method getAsBlob
+            @method getAsBlob
           @param {String} [type="image/jpeg"] Mime type of resulting blob. Can either be image/jpeg or image/png
           @param {Number} [quality=90] Applicable only together with mime type image/jpeg
           @return {Blob} Image as Blob
@@ -15108,7 +15174,7 @@ var MXI_DEBUG = true;
           /**
           Retrieves image in it's current state as dataURL string. Cannot be run on empty or image in progress (throws
           DOMException.INVALID_STATE_ERR).
-           @method getAsDataURL
+            @method getAsDataURL
           @param {String} [type="image/jpeg"] Mime type of resulting blob. Can either be image/jpeg or image/png
           @param {Number} [quality=90] Applicable only together with mime type image/jpeg
           @return {String} Image as dataURL string
@@ -15123,7 +15189,7 @@ var MXI_DEBUG = true;
           /**
           Retrieves image in it's current state as binary string. Cannot be run on empty or image in progress (throws
           DOMException.INVALID_STATE_ERR).
-           @method getAsBinaryString
+            @method getAsBinaryString
           @param {String} [type="image/jpeg"] Mime type of resulting blob. Can either be image/jpeg or image/png
           @param {Number} [quality=90] Applicable only together with mime type image/jpeg
           @return {String} Image as binary string
@@ -15137,7 +15203,7 @@ var MXI_DEBUG = true;
           Embeds a visual representation of the image into the specified node. Depending on the runtime,
           it might be a canvas, an img node or a thrid party shim object (Flash or SilverLight - very rare,
           can be used in legacy browsers that do not have canvas or proper dataURI support).
-           @method embed
+            @method embed
           @param {DOMElement} el DOM element to insert the image object into
           @param {Object} [options]
             @param {Number} [options.width] The width of an embed (defaults to the image width)
@@ -15264,7 +15330,7 @@ var MXI_DEBUG = true;
 
           /**
           Properly destroys the image and frees resources in use. If any. Recommended way to dispose mOxie.Image object.
-           @method destroy
+            @method destroy
           */
           destroy: function () {
             if (this.ruid) {
@@ -15622,7 +15688,7 @@ var MXI_DEBUG = true;
       /**
       Adds an event handler to the specified object and store reference to the handler
       in objects internal Plupload registry (@see removeEvent).
-       @method addEvent
+        @method addEvent
       @for Utils
       @static
       @param {Object} obj DOM element like object to add handler to.
@@ -15682,7 +15748,7 @@ var MXI_DEBUG = true;
       /**
       Remove event handler from the specified object. If third argument (callback)
       is not specified remove all events with the specified name.
-       @method removeEvent
+        @method removeEvent
       @static
       @param {Object} obj DOM element to remove event listener(s) from.
       @param {String} name Name of event listener to remove.
@@ -15739,7 +15805,7 @@ var MXI_DEBUG = true;
 
       /**
       Remove all kind of events from the specified object
-       @method removeAllEvents
+        @method removeAllEvents
       @static
       @param {Object} obj DOM element to remove event listeners from.
       @param {String} [key] unique key to match, when removing events.
@@ -16988,7 +17054,7 @@ var MXI_DEBUG = true;
           tiff: {
             /*
             The image orientation viewed in terms of rows and columns.
-             1 = The 0th row is at the visual top of the image, and the 0th column is the visual left-hand side.
+              1 = The 0th row is at the visual top of the image, and the 0th column is the visual left-hand side.
             2 = The 0th row is at the visual top of the image, and the 0th column is the visual right-hand side.
             3 = The 0th row is at the visual bottom of the image, and the 0th column is the visual right-hand side.
             4 = The 0th row is at the visual bottom of the image, and the 0th column is the visual left-hand side.
@@ -17720,7 +17786,7 @@ var MXI_DEBUG = true;
       - ability to extract APP headers from JPEGs (Exif, GPS, etc)
       - ability to replace width/height tags in extracted JPEG headers
       - ability to restore APP headers, that were for example stripped during image manipulation
-       @class ImageInfo
+        @class ImageInfo
       @constructor
       @param {String} data Image source as binary string
       */
@@ -17743,7 +17809,7 @@ var MXI_DEBUG = true;
         Basic.extend(this, {
           /**
           Image Mime Type extracted from it's depths
-           @property type
+            @property type
           @type {String}
           @default ''
           */
@@ -17751,7 +17817,7 @@ var MXI_DEBUG = true;
 
           /**
           Image size in bytes
-           @property size
+            @property size
           @type {Number}
           @default 0
           */
@@ -17759,7 +17825,7 @@ var MXI_DEBUG = true;
 
           /**
           Image width extracted from image source
-           @property width
+            @property width
           @type {Number}
           @default 0
           */
@@ -17767,7 +17833,7 @@ var MXI_DEBUG = true;
 
           /**
           Image height extracted from image source
-           @property height
+            @property height
           @type {Number}
           @default 0
           */
@@ -17775,7 +17841,7 @@ var MXI_DEBUG = true;
 
           /**
           Sets Exif tag. Currently applicable only for width and height tags. Obviously works only with JPEGs.
-           @method setExif
+            @method setExif
           @param {String} tag Tag to set
           @param {Mixed} value Value to assign to the tag
           */
@@ -17783,7 +17849,7 @@ var MXI_DEBUG = true;
 
           /**
           Restores headers to the source.
-           @method writeHeaders
+            @method writeHeaders
           @param {String} data Image source as binary string
           @return {String} Updated binary string
           */
@@ -17793,7 +17859,7 @@ var MXI_DEBUG = true;
 
           /**
           Strip all headers from the source.
-           @method stripHeaders
+            @method stripHeaders
           @param {String} data Image source as binary string
           @return {String} Updated binary string
           */
@@ -17803,7 +17869,7 @@ var MXI_DEBUG = true;
 
           /**
           Dispose resources.
-           @method purge
+            @method purge
           */
           purge: function () {
             data = null;
@@ -18287,7 +18353,7 @@ var MXI_DEBUG = true;
 
       /**
       Get the version of the Flash Player
-       @method getShimVersion
+        @method getShimVersion
       @private
       @return {Number} Flash Player version
       */
@@ -18311,7 +18377,7 @@ var MXI_DEBUG = true;
       /**
       Cross-browser SWF removal
           - Especially needed to safely and completely remove a SWF in Internet Explorer
-         Originated from SWFObject v2.2 <http://code.google.com/p/swfobject/>
+          Originated from SWFObject v2.2 <http://code.google.com/p/swfobject/>
       */
       function removeSWF(id) {
         var obj = Dom.get(id);
@@ -18346,7 +18412,7 @@ var MXI_DEBUG = true;
 
       /**
       Constructor for the Flash Runtime
-       @class FlashRuntime
+        @class FlashRuntime
       @extends Runtime
       */
       function FlashRuntime(options) {
@@ -19064,7 +19130,7 @@ var MXI_DEBUG = true;
 
       /**
       Constructor for the Silverlight Runtime
-       @class SilverlightRuntime
+        @class SilverlightRuntime
       @extends Runtime
       */
       function SilverlightRuntime(options) {
@@ -20484,7 +20550,7 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Get DOM element by id
-       @method get
+        @method get
       @param {String} id Identifier of the DOM Element
       @return {Node}
       */
@@ -20566,7 +20632,7 @@ var plupload$1 = createCommonjsModule(function (module) {
       after everything is complete, main callback is called. Passing truthy value to the
       callback as a first argument will interrupt the sequence and invoke main callback
       immediately.
-       @method inSeries
+        @method inSeries
       @static
       @param {Array} queue Array of functions to call in sequence
       @param {Function} cb Main callback that is called in the end, or in case of error
@@ -20913,19 +20979,19 @@ var plupload$1 = createCommonjsModule(function (module) {
     plupload.Uploader = function (options) {
       /**
       Fires when the current RunTime has been initialized.
-       @event Init
+        @event Init
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires after the init event incase you need to perform actions there.
-       @event PostInit
+        @event PostInit
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires when the option is changed in via uploader.setOption().
-       @event OptionChanged
+        @event OptionChanged
       @since 2.1
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {String} name Name of the option that was changed
@@ -20935,26 +21001,26 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when the silverlight/flash or other shim needs to move.
-       @event Refresh
+        @event Refresh
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires when the overall state is being changed for the upload queue.
-       @event StateChanged
+        @event StateChanged
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires when browse_button is clicked and browse dialog shows.
-       @event Browse
+        @event Browse
       @since 2.1.2
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires for every filtered file before it is added to the queue.
-       @event FileFiltered
+        @event FileFiltered
       @since 2.1
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file Another file that has to be added to the queue.
@@ -20962,20 +21028,20 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when the file queue is changed. In other words when files are added/removed to the files array of the uploader instance.
-       @event QueueChanged
+        @event QueueChanged
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
 
       /**
       Fires after files were filtered and added to the queue.
-       @event FilesAdded
+        @event FilesAdded
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {Array} files Array of file objects that were added to queue by the user.
        */
 
       /**
       Fires when file is removed from the queue.
-       @event FilesRemoved
+        @event FilesRemoved
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {Array} files Array of files that got removed.
        */
@@ -20983,21 +21049,21 @@ var plupload$1 = createCommonjsModule(function (module) {
       /**
       Fires just before a file is uploaded. Can be used to cancel the upload for the specified file
       by returning false from the handler.
-       @event BeforeUpload
+        @event BeforeUpload
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file File to be uploaded.
        */
 
       /**
       Fires when a file is to be uploaded by the runtime.
-       @event UploadFile
+        @event UploadFile
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file File to be uploaded.
        */
 
       /**
       Fires while a file is being uploaded. Use this event to update the current file upload progress.
-       @event UploadProgress
+        @event UploadProgress
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file File that is currently being uploaded.
        */
@@ -21016,7 +21082,7 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when file chunk is uploaded.
-       @event ChunkUploaded
+        @event ChunkUploaded
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file File that the chunk was uploaded for.
       @param {Object} result Object with response properties.
@@ -21029,7 +21095,7 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when a file is successfully uploaded.
-       @event FileUploaded
+        @event FileUploaded
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {plupload.File} file File that was uploaded.
       @param {Object} result Object with response properties.
@@ -21040,14 +21106,14 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when all files in a queue are uploaded.
-       @event UploadComplete
+        @event UploadComplete
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {Array} files Array of file objects that was added to queue/selected by the user.
        */
 
       /**
       Fires when a error occurs.
-       @event Error
+        @event Error
       @param {plupload.Uploader} uploader Uploader instance sending the event.
       @param {Object} error Contains code, message and sometimes file and other details.
         @param {Number} error.code The plupload error code.
@@ -21056,7 +21122,7 @@ var plupload$1 = createCommonjsModule(function (module) {
 
       /**
       Fires when destroy method is called.
-       @event Destroy
+        @event Destroy
       @param {plupload.Uploader} uploader Uploader instance sending the event.
        */
       var uid = plupload.guid(),
@@ -22252,7 +22318,7 @@ var plupload$1 = createCommonjsModule(function (module) {
 
         /**
         Dispatches the specified event name and its arguments to all listeners.
-         @method trigger
+          @method trigger
         @param {String} name Event name to fire.
         @param {Object..} Multiple arguments to pass along to the listener functions.
         */
@@ -22288,13 +22354,13 @@ var plupload$1 = createCommonjsModule(function (module) {
 
         /**
         Check whether uploader has any listeners to the specified event.
-         @method hasEventListener
+          @method hasEventListener
         @param {String} name Event name to check for.
         */
 
         /**
         Adds an event listener by name.
-         @method bind
+          @method bind
         @param {String} name Event name to listen for.
         @param {function} fn Function to call ones the event gets fired.
         @param {Object} [scope] Optional scope to execute the specified function in.
@@ -22307,14 +22373,14 @@ var plupload$1 = createCommonjsModule(function (module) {
 
         /**
         Removes the specified event listener.
-         @method unbind
+          @method unbind
         @param {String} name Name of event to remove.
         @param {function} fn Function to remove from listener.
         */
 
         /**
         Removes all event listeners.
-         @method unbindAll
+          @method unbindAll
         */
 
         /**
@@ -24213,7 +24279,8 @@ var plupload$1 = createCommonjsModule(function (module) {
 window.moxie = moxie$1;
 window.plupload = plupload$1;
 
-const domain = qiniu_conf.DOMAIN_NAME;
+// import conf from '../../qiniu.conf';
+const domain = public_conf.DOMAIN_NAME;
 
 const nameSpace = 'testUpload';
 
