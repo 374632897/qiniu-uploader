@@ -19,9 +19,15 @@ A simple uploader for qiniu-cloud
 cp qiniu.default.conf.js qiniu.conf.js
 ```
 
-将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY`、`DOMAIN_NAME`和`BUCKET_NAME` 替换成自己的。
+* 将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY`、`DOMAIN_NAME`和`BUCKET_NAME` 替换成自己的。
 
-然后运行`npm start`， 访问`http://localhost:4999`就可以上传文件了o(╯□╰)o
+* 安装依赖
+```bash
+yarn
+# or
+npm install
+```
+* 然后运行`npm start`， 访问`http://localhost:4999`就可以上传文件了o(╯□╰)o
 
 虽然似乎， 为了上传文件专门搞一个这个有点麻烦， 但是我实在找不到更好的图床了。
 
