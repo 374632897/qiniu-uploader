@@ -9394,15 +9394,19 @@ var App = { render: function () {
   computed: {}
 };
 
-var qiniu_conf = {
-  ACCESS_KEY: 'xX4cGAPXhg4i_qk9Kv9kvMgKNFGt-BELjtxAG7SM',
-  SECRET_KEY: 'E_J2kx6GUuQLY7LGB7-BR8sl0O4DZ_G_VeqjDyqe',
+/*
+* @Author: Jiang Guoxi
+* @Date:   2017-03-25 00:05:04
+* @Last Modified by:   Jiang Guoxi
+* @Last Modified time: 2017-03-25 00:05:24
+*/
+var public_conf = {
   DOMAIN_NAME: 'http://onbsowgv2.bkt.clouddn.com/',
   // 空间名
   BUCKET_NAME: 'test-2'
 };
 
-window.isHttp = qiniu_conf.DOMAIN_NAME.indexOf('https') !== 0;
+window.isHttp = public_conf.DOMAIN_NAME.indexOf('https') !== 0;
 
 var moxie$1 = createCommonjsModule(function (module) {
 var MXI_DEBUG = true;
@@ -24275,7 +24279,8 @@ var plupload$1 = createCommonjsModule(function (module) {
 window.moxie = moxie$1;
 window.plupload = plupload$1;
 
-const domain = qiniu_conf.DOMAIN_NAME;
+// import conf from '../../qiniu.conf';
+const domain = public_conf.DOMAIN_NAME;
 
 const nameSpace = 'testUpload';
 
