@@ -15,24 +15,24 @@ A simple uploader for qiniu-cloud
 
 #### 修改配置文件
 * 在根目录下从qiniu.default.conf.js新建`qiniu.conf.js`
-```bash
-cp qiniu.default.conf.js qiniu.conf.js
-```
+  ```bash
+  cp qiniu.default.conf.js qiniu.conf.js
+  ```
 
 * 将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY`、`DOMAIN_NAME`和`BUCKET_NAME` 替换成自己的。
 
 * 安装依赖
-```bash
-yarn
-# or
-npm install
-```
+  ```bash
+  yarn
+  # or
+  npm install
+  ```
 * 然后运行`npm start`， 访问`http://localhost:4999`就可以上传文件了o(╯□╰)o
 
 虽然似乎， 为了上传文件专门搞一个这个有点麻烦， 但是我实在找不到更好的图床了。
 
 ### 一些坑
-以下是七牛[node-sdk](https://developer.qiniu.com/kodo/sdk/nodejs)里面的介绍
+以下是七牛[node-sdk](https://developer.qiniu.com/kodo/sdk/nodejs)里面的一个案例o(╯□╰)o
 ![七牛](https://assets.noteawesome.com/testUpload/2017-3-24/86187/image.png)
 
 以后再写吧。
