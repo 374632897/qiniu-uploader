@@ -627,7 +627,7 @@ function QiniuJsSDK() {
             var putPolicy = getPutPolicy(uptoken);
             // var uphosts_url = "//uc.qbox.me/v1/query?ak="+ak+"&bucket="+putPolicy.scope;
             // IE9 does not support protocol relative url
-            var uphosts_url = isHttps ? 'https:' : 'http:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
+            var uphosts_url = isHttps ? ('https:' : 'http:') + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
             // var uphosts_url = 'https:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
             logger.debug("putPolicy: ", putPolicy);
             logger.debug("get uphosts from: ", uphosts_url);
