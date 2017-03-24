@@ -15,7 +15,7 @@
 /*exported QiniuJsSDK */
 
 ;(function( global ){
-
+var isHttps = !window.isHttp;
 /**
  * Creates new cookie or removes cookie with negative expiration
  * @param  key       The key or identifier for the store
@@ -145,7 +145,7 @@ function QiniuJsSDK() {
 
     var qiniuUploadUrl;
     // if (window.location.protocol === 'https:') {
-    if (true) {
+    if (isHttps) {
         qiniuUploadUrl = 'https://up.qbox.me';
     } else {
         qiniuUploadUrl = 'http://upload.qiniu.com';
@@ -182,7 +182,7 @@ function QiniuJsSDK() {
      */
     this.resetUploadUrl = function(){
   // var hosts = window.location.protocol === 'https:' ? qiniuUpHosts.https : qiniuUpHosts.http;
-  var hosts = true ? qiniuUpHosts.https : qiniuUpHosts.http;
+  var hosts = isHttps ? qiniuUpHosts.https : qiniuUpHosts.http;
   var i = changeUrlTimes % hosts.length;
   qiniuUploadUrl = hosts[i];
   changeUrlTimes++;
@@ -627,8 +627,8 @@ function QiniuJsSDK() {
             var putPolicy = getPutPolicy(uptoken);
             // var uphosts_url = "//uc.qbox.me/v1/query?ak="+ak+"&bucket="+putPolicy.scope;
             // IE9 does not support protocol relative url
-            // var uphosts_url = window.location.protocol + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
-            var uphosts_url = 'https:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
+            var uphosts_url = isHttps ? 'https:' : 'http:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
+            // var uphosts_url = 'https:' + "//uc.qbox.me/v1/query?ak=" + putPolicy.ak + "&bucket=" + putPolicy.bucket;
             logger.debug("putPolicy: ", putPolicy);
             logger.debug("get uphosts from: ", uphosts_url);
             var ie = that.detectIEVersion();
