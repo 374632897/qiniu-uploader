@@ -1,5 +1,5 @@
 // import conf from '../../qiniu.conf';
-import publicConf from '../../public.conf';
+import publicConf from '../../config/public.conf';
 
 export const domain = publicConf.DOMAIN_NAME;
 

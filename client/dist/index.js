@@ -9333,12 +9333,6 @@ var App = { render: function () {
   computed: {}
 };
 
-/*
-* @Author: Jiang Guoxi
-* @Date:   2017-03-25 00:05:04
-* @Last Modified by:   Jiang Guoxi
-* @Last Modified time: 2017-03-25 00:05:24
-*/
 var public_conf = {
   DOMAIN_NAME: 'http://onbsowgv2.bkt.clouddn.com/',
   // 空间名

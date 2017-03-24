@@ -1,5 +1,5 @@
 node_modules
-qiniu.conf.js
+config/secret.conf.js
 plupload
 *.log
 *.map
