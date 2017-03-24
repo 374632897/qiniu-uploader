@@ -6,13 +6,14 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublish": "npm run build",
     "start": "node server/",
-    "dev": "rollup -cw",
-    "build": "NODE_ENV=prod rollup -c"
+    "dev": "gulp",
+    "build": "cross-env NODE_ENV=prod gulp index",
+    "build:all": "cross-env NODE_ENV=prod gulp"
   },
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "rui-size": "^1.0.0",
+    "rui-size": "^1.0.1",
     "vue": "^2.2.4"
   },
   "devDependencies": {
@@ -23,6 +24,7 @@
     "body-parser": "^1.17.1",
     "chalk": "^1.1.3",
     "express": "^4.15.2",
+    "gulp": "^3.9.1",
     "opn": "^4.0.2",
     "qiniu": "6.1.13",
     "rollup": "^0.41.6",
