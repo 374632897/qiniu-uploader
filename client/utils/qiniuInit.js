@@ -69,9 +69,6 @@ var uploader = Qiniu.uploader({
                //    "key": "gogopher.jpg"
                //  }
                // 参考http://developer.qiniu.com/docs/v6/api/overview/up/response/simple-response.html
-               console
-               console
-               console
                var domain = up.getOption('domain');
                var res = JSON.parse(info.response);
                var sourceLink = domain + res.key; //获取上传成功后的文件的Url
