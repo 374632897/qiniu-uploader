@@ -1,4 +1,5 @@
-const path = require('path')
+const opn = require('opn');
+const path = require('path');
 const express = require('express');
 const bodyParser = require('body-parser');
 const { uptoken }  = require('./util');
@@ -27,5 +28,6 @@ app.get('/getToken', (req, res) => {
 app.listen(4999, (err) => {
   if (!err) {
     console.log('Server runing at localhost:4999/');
+    opn('http://localhost:4999/');
   }
 });

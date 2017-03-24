@@ -12,6 +12,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "opn": "^4.0.2",
     "rui-size": "^1.0.0",
     "vue": "^2.2.4"
   },
