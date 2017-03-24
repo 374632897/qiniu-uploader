@@ -1,6 +1,7 @@
-import conf from '../../qiniu.conf';
+// import conf from '../../qiniu.conf';
+import publicConf from '../../public';
 
-export const domain = conf.DOMAIN_NAME;
+export const domain = publicConf.DOMAIN_NAME;
 
 export const nameSpace = 'testUpload';
 
