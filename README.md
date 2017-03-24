@@ -16,14 +16,14 @@ A simple uploader for qiniu-cloud
 本项目基于[七牛js-sdk](https://github.com/qiniu/js-sdk), [node-sdk](https://github.com/qiniu/nodejs-sdk.v6), 而`js-sdk`又是基于`moxie`和`plupload`， 然后后面两个都不提供`npm`包， 似乎是没有？我在他们官网上好像没看到。 为了方便我就直接拷贝过来了， 对于`js-sdk`的源码有小幅度改动。
 
 #### 修改配置文件
-* 在根目录下从qiniu.default.conf.js新建`qiniu.conf.js`
+* 在`config`secret.default.conf.js新建`secret.conf.js`
   ```bash
-  cp qiniu.default.conf.js qiniu.conf.js
+  cp config/secret.default.conf.js config/secret.conf.js
   ```
 
-* 将`qiniu.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY` 替换成自己的。
+* 将`secret.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY` 替换成自己的。
 
-* 在`public.js`里面指定域名和空间名。
+* 在`config/public.conf.js`里面指定域名和空间名。
 
 * 安装依赖
   ```bash
