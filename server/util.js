@@ -4,7 +4,8 @@ const conf  = require('../qiniu.conf.js');
 Object.assign(qiniu.conf, conf);
 
 exports.uptoken = function uptoken (bucket, key) {
-  const putPolicy = new qiniu.rs.PutPolicy(bucket + ":" + key);
+  const name = key ? bucket + ':' + key : bucket;
+  const putPolicy = new qiniu.rs.PutPolicy(name);
   return putPolicy.token();
 }
 

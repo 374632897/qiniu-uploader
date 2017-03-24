@@ -3,13 +3,14 @@
 <head>
   <title>qiniu-upload</title>
   <style type="text/css">
-     #container {
+     #container, textarea {
         width: 80%;
         max-width: 800px;
         margin: 0 auto;
         height: 400px;
         border: 1px solid #eaeaea;
         margin-bottom: 10px;
+        display: block;
      }
      button {
        border: none;
@@ -19,11 +20,15 @@
        border-radius: 3px;
        margin-left: 10%;
      }
+     textarea {
+       height: 40px;
+     }
   </style>
 </head>
 <body>
 <div id="app">
   <div id="container"></div>
+  <textarea id = 'paste'></textarea>
   <button id = 'pickfiles'>上传文件</button>
 </div>
   <script src = './dist/index.js'></script>
