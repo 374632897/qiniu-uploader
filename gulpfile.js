@@ -19,9 +19,9 @@ gulp.task('lib', () => {
 gulp.task('index', () => {
   const { config, writeOption } = getRollupConfig({
     entry: getPath('index.js'),
-    dist:  getPath('index.min.js'),
+    dist:  getPath('/dist/index.min.js'),
     withVue: true,
-    css: getPath('index.css'),
+    css: getPath('/dist/index.css'),
   });
   return rollup.rollup(config).then((bundle) => {
     bundle.write(writeOption)

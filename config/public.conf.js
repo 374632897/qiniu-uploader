@@ -1,5 +1,5 @@
 module.exports = {
-  DOMAIN_NAME: 'http://onbsowgv2.bkt.clouddn.com/',
+  DOMAIN_NAME: 'https://assets.noteawesome.com/',
   // 空间名
-  BUCKET_NAME: 'test-2',
+  BUCKET_NAME: 'blog2',
 }

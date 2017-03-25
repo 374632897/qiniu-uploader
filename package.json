@@ -7,8 +7,8 @@
     "prepublish": "npm run build",
     "start": "node server/",
     "dev": "gulp",
-    "build": "cross-env NODE_ENV=prod gulp index",
-    "build:all": "cross-env NODE_ENV=prod gulp"
+    "build:index": "cross-env NODE_ENV=prod gulp index",
+    "build": "cross-env NODE_ENV=prod gulp"
   },
   "author": "",
   "license": "MIT",
