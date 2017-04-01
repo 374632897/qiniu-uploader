@@ -23,7 +23,7 @@ A simple uploader for qiniu-cloud
 
 * 将`secret.conf.js`里面的`ACCESS_KEY`、`SECRET_KEY` 替换成自己的。
 
-* 在`config/public.conf.js`里面指定域名和空间名。
+* 在`config/public.conf.js`里面指定域名和空间名， 以及命名空间， 命名空间默认为`testUpload`， 在更改命名空间后， 需要重新运行`npm run build`命令进行构建。
 
 * 安装依赖
   ```bash
